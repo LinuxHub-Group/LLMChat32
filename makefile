@@ -16,7 +16,7 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj
 APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
@@ -33,9 +33,13 @@ build\ui.obj: src\ui\ui.c src\ui\ui.h src\ui\strings.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\ui.obj src\ui\ui.c
 
-build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\core\config.h src\core\session.h
+build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\ui\inputbar.h src\core\config.h src\core\session.h src\core\app.h src\core\history.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\mainwin.obj src\ui\mainwin.c
+
+build\inputbar.obj: src\ui\inputbar.c src\ui\inputbar.h src\ui\ui.h src\ui\strings.h src\ui\draw.h src\core\config.h src\core\utf.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\inputbar.obj src\ui\inputbar.c
 
 build\tabbar.obj: src\ui\tabbar.c src\ui\tabbar.h src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\core\session.h
 	@if not exist build mkdir build
@@ -71,6 +75,37 @@ build\toml.obj: src\core\toml.c src\core\toml.h
 build\image.obj: src\core\image.c src\core\image.h third_party\stb_image.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\image.obj src\core\image.c
+
+# --- core orchestration stack, wired into the exe by Task 17 -----------
+build\app.obj: src\core\app.c src\core\app.h src\core\config.h src\core\llm.h src\core\session.h src\core\history.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\app.obj src\core\app.c
+
+build\history.obj: src\core\history.c src\core\history.h src\core\session.h src\core\json.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\history.obj src\core\history.c
+
+build\json.obj: src\core\json.c src\core\json.h src\core\utf.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\json.obj src\core\json.c
+
+build\net.obj: src\core\net.c src\core\net.h src\core\config.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\net.obj src\core\net.c
+
+# tls.c includes wolfssl headers: same feature defines/include paths as
+# the wolfSSL build (the "same feature defines" rule, see WOLFSSL_OPTS).
+build\tls.obj: src\core\tls.c src\core\tls.h src\core\net.h src\core\certs_roots.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) $(WOLFSSL_OPTS) -c -fo=build\tls.obj src\core\tls.c
+
+build\http.obj: src\core\http.c src\core\http.h src\core\net.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\http.obj src\core\http.c
+
+build\llm.obj: src\core\llm.c src\core\llm.h src\core\json.h src\core\http.h src\core\net.h src\core\tls.h src\core\config.h src\core\session.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\llm.obj src\core\llm.c
 
 # icon-only resource; the menu is built from LS() strings in code
 build\app.res: src\res\app.rc src\res\app.ico
@@ -171,6 +206,14 @@ clean: .SYMBOLIC
 	@if exist build\config.obj del build\config.obj
 	@if exist build\toml.obj del build\toml.obj
 	@if exist build\image.obj del build\image.obj
+	@if exist build\app.obj del build\app.obj
+	@if exist build\history.obj del build\history.obj
+	@if exist build\json.obj del build\json.obj
+	@if exist build\net.obj del build\net.obj
+	@if exist build\tls.obj del build\tls.obj
+	@if exist build\http.obj del build\http.obj
+	@if exist build\llm.obj del build\llm.obj
+	@if exist build\inputbar.obj del build\inputbar.obj
 	@if exist build\app.res del build\app.res
 	@if exist build\wolfssl.lib del build\wolfssl.lib
 	@if exist tests\test_tls_smoke.exe del tests\test_tls_smoke.exe

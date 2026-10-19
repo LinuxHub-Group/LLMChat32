@@ -1,30 +1,44 @@
 /*
- * mainwin.c - main window skeleton: class, menu, tab strip, chat view,
- * status strip, command dispatch shell.
+ * mainwin.c - main window: class, menu, tab strip, chat view, input bar,
+ * status strip, and the wiring that ties the core (app/history/session)
+ * to the UI.
  *
- * The client area hosts the tab strip ("LlmTabBar" child, see tabbar.h)
- * in its top ~28px and the conversation view ("LlmChat" child, see
- * chatview.h) in the space down to the self-drawn status strip at the
- * bottom. The menu is assembled programmatically from LS() strings -
- * there is no .rc menu. The status bar is a self-drawn strip at the
- * bottom of the client area (FillRect + ui_drawtext_w), not a comctl32
- * control.
+ * The client area hosts the tab strip ("LlmTabBar" child) in its top
+ * ~28px, the conversation view ("LlmChat") below it, the input strip
+ * ("LlmInputBar", see inputbar.h) above the self-drawn status strip at
+ * the bottom. The menu is assembled programmatically from LS() strings -
+ * there is no .rc menu.
  *
- * DEMO_TABS: with no session-loading layer yet (Tasks 17/20), a first
- * run gets 3 fake sessions with fabricated messages so the tab strip is
- * clickable and the chat view has something to render.
+ * Ownership: mainwin owns the Session list (s_sess, capped at
+ * MAX_SESSIONS). Sessions are loaded at startup from
+ * g_cfg.g.history_dir via history_list + history_load; a fresh empty
+ * session is created on New-tab / when the last one closes. Closing a
+ * tab history_delete()s its file, frees the Session and selects a
+ * neighbor. Everything is freed on WM_DESTROY.
+ *
+ * The App object (Task 12) is created here too; app events are sunk into
+ * the UI (chatview invalidation, status strip, input bar button), and a
+ * 50ms SetTimer drives app_pump() - simple and Win98-fine.
+ *
+ * Busy policy: while a send is in flight (app_busy) tab switching,
+ * closing and new-tab are blocked (the tabbar selection is reverted) -
+ * the Session being streamed into must stay the current one.
  */
 #include "mainwin.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <windows.h>
 
-#include "../core/config.h"
+#include "../core/app.h"
+#include "../core/history.h"
 #include "../core/session.h"
+#include "../core/utf.h"
 #include "chatview.h"
 #include "commands.h"
+#include "inputbar.h"
 #include "strings.h"
 #include "tabbar.h"
 #include "ui.h"
@@ -33,112 +47,28 @@
 #define STATUS_STRIP_H  22
 #define STATUS_PAD_X    6
 
-/* Demo tabs until real session loading lands (Tasks 17/20). Set to 0 to
- * disable; the fake sessions and this define are removed together. */
-#define DEMO_TABS 1
-#define DEMO_TABS_N 3
+#define MAX_SESSIONS    32
+#define TIMER_PUMP_ID   1
+#define TIMER_PUMP_MS   50
 
 HWND g_hwnd_main = NULL;
 
-/* status strip content; later tasks switch this between
- * S_STATUS_READY / S_STATUS_SENDING / S_STATUS_ABORTED. When
- * s_status_text is non-empty it overrides the LS() string. */
+/* status strip content: LS() string unless s_status_text is non-empty
+ * (e.g. an error message or a session title override). */
 static StrID s_status = S_STATUS_READY;
 static char s_status_text[128];   /* UTF-8 override */
 
 static HWND s_tabbar = NULL;
 static HWND s_chat = NULL;
+static HWND s_input = NULL;
 
-#if DEMO_TABS
-static Session *s_demo[DEMO_TABS_N];
+static App *s_app = NULL;
+static Session *s_sess[MAX_SESSIONS];
+static int s_nsess = 0;
+static int s_cur = -1;            /* index into s_sess, -1 = none */
 
-/* Fabricated conversations exercising the view: mixed short bubbles,
- * a think block + image block, and a >screen long text for scrolling.
- * Removed together with DEMO_TABS in Tasks 17/20. */
-static char *demo_long_text(void)
-{
-    const char *para = LS(S_DEMO_A_TCP_BODY);
-    int plen = (int)strlen(para);
-    int reps = 9;
-    char *buf = (char *)malloc((size_t)reps * ((size_t)plen + 16)
-                               + strlen(LS(S_DEMO_A_TCP_INT)) + 4);
-    int off = 0;
-    int r;
-
-    if (buf == NULL)
-        return NULL;
-    strcpy(buf, LS(S_DEMO_A_TCP_INT));
-    strcat(buf, "\n\n");
-    off = (int)strlen(buf);
-    for (r = 1; r <= reps; r++)
-        off += sprintf(buf + off, "%d. %s\n\n", r, para);
-    return buf;
-}
-
-static void demo_fill_sessions(void)
-{
-    Msg *m;
-    char *long_text;
-
-    /* session 1: short mixed conversation (zh + emoji + latin) */
-    m = session_add_msg(s_demo[0], ROLE_USER);
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_HELLO));
-    m = session_add_msg(s_demo[0], ROLE_ASSIST);
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_A_HELLO));
-    m = session_add_msg(s_demo[0], ROLE_USER);
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_POEM));
-    m = session_add_msg(s_demo[0], ROLE_ASSIST);
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_A_POEM));
-
-    /* session 2: think block (link line) + text + image block */
-    m = session_add_msg(s_demo[1], ROLE_USER);
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_QE));
-    m = session_add_msg(s_demo[1], ROLE_ASSIST);
-    msg_add_block(m, BLOCK_THINK, LS(S_DEMO_A_QE_THINK));
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_A_QE));
-    msg_add_block(m, BLOCK_IMAGE, "demo://entanglement.png");
-
-    /* session 3: one long assistant answer (scroll + wrapping) */
-    long_text = demo_long_text();
-    m = session_add_msg(s_demo[2], ROLE_USER);
-    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_TCP));
-    m = session_add_msg(s_demo[2], ROLE_ASSIST);
-    msg_add_block(m, BLOCK_TEXT, long_text != NULL ? long_text
-                                                   : LS(S_DEMO_A_TCP_BODY));
-    free(long_text);
-}
-
-static void demo_tabs_init(void)
-{
-    Session *list[DEMO_TABS_N];
-    int i;
-
-    for (i = 0; i < DEMO_TABS_N; i++) {
-        char id[24];
-
-        sprintf(id, "demo-%d", i);
-        s_demo[i] = session_new(id);
-        if (s_demo[i] == NULL)
-            return;
-        sprintf(s_demo[i]->title, "%s %d", LS(S_TAB_DEMO), i + 1);
-        list[i] = s_demo[i];
-    }
-    demo_fill_sessions();
-    tabbar_set_sessions(list, DEMO_TABS_N);
-}
-
-static void demo_tabs_free(void)
-{
-    int i;
-
-    for (i = 0; i < DEMO_TABS_N; i++) {
-        if (s_demo[i] != NULL) {
-            session_free(s_demo[i]);
-            s_demo[i] = NULL;
-        }
-    }
-}
-#endif /* DEMO_TABS */
+/* ------------------------------------------------------------------ */
+/* status strip helpers                                                */
 
 static void status_set_text(const char *utf8)
 {
@@ -156,6 +86,250 @@ static void status_invalidate(HWND hwnd)
     InvalidateRect(hwnd, &rc, FALSE);
 }
 
+/* ------------------------------------------------------------------ */
+/* session list (owned here)                                           */
+
+static int session_index_of(const char *id)
+{
+    int i;
+
+    for (i = 0; i < s_nsess; i++)
+        if (strcmp(s_sess[i]->id, id) == 0)
+            return i;
+    return -1;
+}
+
+/* Unique time+counter id ("t<hex>-<n>", <= 23 chars). */
+static void make_session_id(char *id, int cap)
+{
+    static unsigned long seq = 0;
+    unsigned long base = (unsigned long)time(NULL);
+
+    for (;;) {
+        snprintf(id, cap, "t%lx-%lu", base, seq++);
+        if (session_index_of(id) < 0)
+            return;
+    }
+}
+
+/* Append a fresh unsaved session; NULL when the list is full or OOM. */
+static Session *session_add_blank(void)
+{
+    char id[24];
+    Session *s;
+
+    if (s_nsess >= MAX_SESSIONS)
+        return NULL;
+    make_session_id(id, sizeof id);
+    s = session_new(id);
+    if (s == NULL)
+        return NULL;
+    s_sess[s_nsess] = s;
+    s_nsess++;
+    return s;
+}
+
+/* 1 when the title was filled from the first line of text. */
+static int session_autotitle(Session *s, const char *text)
+{
+    int i = 0;
+    int n = 0;
+
+    if (s->title[0] != '\0')
+        return 0;
+    while (text[i] != '\0' && n < 20 && text[i] != '\n' && text[i] != '\r') {
+        unsigned cp;
+        int k = utf8_decode_next(text + i, (int)strlen(text + i), &cp);
+
+        if (k <= 0)
+            break;
+        i += k;
+        n++;
+    }
+    if (i == 0)
+        return 0;
+    if (i > (int)sizeof s->title - 1)
+        i = (int)sizeof s->title - 1;
+    memcpy(s->title, text, (size_t)i);
+    s->title[i] = '\0';
+    return 1;
+}
+
+static void tabs_refresh(int select_idx)
+{
+    tabbar_set_sessions(s_sess, s_nsess);
+    if (select_idx >= 0 && select_idx < s_nsess)
+        tabbar_set_current(select_idx);
+}
+
+/* Show session idx (must be valid): point the chatview at it, mirror its
+ * title into the status strip and make it current. */
+static void show_session(int idx)
+{
+    s_cur = idx;
+    chatview_set_session(s_sess[idx]);
+    if (s_sess[idx]->title[0] != '\0') {
+        status_set_text(s_sess[idx]->title);
+    } else {
+        s_status_text[0] = '\0';
+        s_status = S_STATUS_READY;
+    }
+    status_invalidate(g_hwnd_main);
+}
+
+/* Close idx: delete the history file, free the Session, drop it from the
+ * list and select a neighbor (a fresh session when the last one goes). */
+static void close_session(int idx)
+{
+    int sel;
+
+    if (idx < 0 || idx >= s_nsess)
+        return;
+    history_delete(g_cfg.g.history_dir, s_sess[idx]->id);
+    session_free(s_sess[idx]);
+    memmove(&s_sess[idx], &s_sess[idx + 1],
+            (size_t)(s_nsess - idx - 1) * sizeof s_sess[0]);
+    s_nsess--;
+    if (s_nsess == 0)
+        session_add_blank();        /* keep at least one tab */
+    sel = idx < s_nsess ? idx : s_nsess - 1;
+    tabs_refresh(sel);
+    if (s_nsess > 0)
+        show_session(sel);
+    else {
+        s_cur = -1;
+        chatview_set_session(NULL);
+        status_invalidate(g_hwnd_main);
+    }
+}
+
+static void sessions_init(void)
+{
+    char ids[MAX_SESSIONS][24];
+    int n = history_list(g_cfg.g.history_dir, ids, MAX_SESSIONS);
+    int i;
+
+    for (i = 0; i < n && s_nsess < MAX_SESSIONS; i++) {
+        char path[600];
+        char err[128];
+        Session *s = session_new(ids[i]);
+
+        if (s == NULL)
+            break;
+        sprintf(path, "%s\\%s.json", g_cfg.g.history_dir, ids[i]);
+        if (history_load(s, path, err, (int)sizeof err) != 0)
+            strcpy(s->id, ids[i]);  /* load rolls the id back; restore it
+                                       so a later save overwrites the bad
+                                       file instead of writing ".json" */
+        s_sess[s_nsess] = s;
+        s_nsess++;
+    }
+    if (s_nsess == 0)
+        session_add_blank();        /* unsaved until the first send ends */
+}
+
+static void sessions_free_all(void)
+{
+    int i;
+
+    for (i = 0; i < s_nsess; i++) {
+        session_free(s_sess[i]);
+        s_sess[i] = NULL;
+    }
+    s_nsess = 0;
+    s_cur = -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* app event sink -> UI                                                */
+
+/* The pump already appended the fragment to the Session; the sink only
+ * repaints. */
+static void ev_text(void *ctx, int msg_idx, const char *frag, int len)
+{
+    (void)ctx; (void)frag; (void)len;
+    chatview_invalidate_msg(msg_idx);
+    chatview_scroll_bottom();
+}
+
+static void ev_done(void *ctx, int msg_idx, int finish)
+{
+    (void)ctx; (void)msg_idx;
+    s_status_text[0] = '\0';
+    s_status = (finish == 2) ? S_STATUS_ABORTED : S_STATUS_READY;
+    inputbar_set_sending(0);
+    status_invalidate(g_hwnd_main);
+}
+
+static void ev_error(void *ctx, int msg_idx, const char *msg)
+{
+    (void)ctx; (void)msg_idx;
+    status_set_text(msg);
+    inputbar_set_sending(0);
+    status_invalidate(g_hwnd_main);
+}
+
+static void ev_busy(void *ctx, int busy)
+{
+    (void)ctx;
+    inputbar_set_sending(busy);
+    if (busy) {
+        s_status_text[0] = '\0';
+        s_status = S_STATUS_SENDING;
+        status_invalidate(g_hwnd_main);
+    }
+}
+
+static const AppEvents APP_EV = { ev_text, ev_text, ev_done, ev_error,
+                                  ev_busy };
+
+/* ------------------------------------------------------------------ */
+/* send flow                                                           */
+
+static void do_send_or_abort(void)
+{
+    char buf[INPUTBAR_TEXT_MAX];
+    size_t len;
+    int rc;
+
+    if (s_app != NULL && app_busy(s_app)) {
+        app_abort(s_app);
+        return;
+    }
+    inputbar_get_text(buf, sizeof buf);
+    len = strlen(buf);
+    while (len > 0 &&
+           (buf[len - 1] == '\n' || buf[len - 1] == '\r' ||
+            buf[len - 1] == ' ' || buf[len - 1] == '\t'))
+        buf[--len] = '\0';
+    if (len == 0)
+        return;
+    if (s_cur < 0 || s_cur >= s_nsess) {
+        if (session_add_blank() == NULL) {
+            status_set_text(LS(S_SEND_FAILED));
+            status_invalidate(g_hwnd_main);
+            return;
+        }
+        s_cur = s_nsess - 1;
+        tabs_refresh(s_cur);
+        show_session(s_cur);
+    }
+    if (session_autotitle(s_sess[s_cur], buf))
+        tabs_refresh(s_cur);
+    rc = app_send(s_app, s_sess[s_cur], buf);
+    if (rc != 0) {
+        status_set_text(LS(S_SEND_FAILED));
+        status_invalidate(g_hwnd_main);
+        return;
+    }
+    /* on_busy(1) fired inside app_send: status -> sending, button ->
+     * abort. Just clear the input. */
+    inputbar_clear();
+}
+
+/* ------------------------------------------------------------------ */
+/* layout                                                              */
+
 static void layout_tabbar(HWND hwnd)
 {
     RECT rc;
@@ -167,7 +341,7 @@ static void layout_tabbar(HWND hwnd)
 }
 
 /* the chat view takes the client area between the tab strip and the
- * status strip */
+ * input strip */
 static void layout_chat(HWND hwnd)
 {
     RECT rc;
@@ -176,7 +350,19 @@ static void layout_chat(HWND hwnd)
         return;
     GetClientRect(hwnd, &rc);
     MoveWindow(s_chat, 0, TABBAR_HEIGHT, rc.right,
-               rc.bottom - TABBAR_HEIGHT - STATUS_STRIP_H, TRUE);
+               rc.bottom - TABBAR_HEIGHT - STATUS_STRIP_H - INPUTBAR_HEIGHT,
+               TRUE);
+}
+
+static void layout_inputbar(HWND hwnd)
+{
+    RECT rc;
+
+    if (s_input == NULL)
+        return;
+    GetClientRect(hwnd, &rc);
+    MoveWindow(s_input, 0, rc.bottom - STATUS_STRIP_H - INPUTBAR_HEIGHT,
+               rc.right, INPUTBAR_HEIGHT, TRUE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -255,52 +441,64 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
 
     switch (msg) {
     case WM_APP_TAB_CHANGED:
-        if (lp >= 0 && lp < DEMO_TABS_N
-#if DEMO_TABS
-            && s_demo[lp] != NULL
-#endif
-            ) {
-#if DEMO_TABS
-            chatview_set_session(s_demo[lp]);
-            status_set_text(s_demo[lp]->title);
-#else
-            status_set_text("tab changed");
-#endif
-        } else {
-            status_set_text("tab: ?");
+        /* switching mid-send is blocked: the streaming Session must stay
+         * the current one (tabbar selection is reverted) */
+        if (app_busy(s_app)) {
+            tabbar_set_current(s_cur);
+            return 0;
         }
-        status_invalidate(hwnd);
-        return 0;
-
-    case WM_APP_TAB_CLOSE:
-        /* real close/delete lands in Task 17/20 */
-        {
-            char buf[32];
-
-            sprintf(buf, "close: %d", (int)lp);
-            status_set_text(buf);
-        }
-        status_invalidate(hwnd);
+        if (lp >= 0 && lp < s_nsess)
+            show_session((int)lp);
         return 0;
 
     case WM_APP_TAB_NEW:
-        /* real new-session lands in Task 17/20 */
-        status_set_text(LS(S_MENU_NEW_CHAT));
-        status_invalidate(hwnd);
+        if (app_busy(s_app)) {
+            tabbar_set_current(s_cur);
+            return 0;
+        }
+        if (session_add_blank() != NULL) {
+            tabs_refresh(s_nsess - 1);
+            show_session(s_nsess - 1);
+        }
+        return 0;
+
+    case WM_APP_TAB_CLOSE:
+        if (app_busy(s_app)) {
+            tabbar_set_current(s_cur);
+            return 0;
+        }
+        close_session((int)lp);
+        return 0;
+
+    case WM_TIMER:
+        if (wp == TIMER_PUMP_ID && s_app != NULL)
+            app_pump(s_app);
         return 0;
 
     case WM_SIZE:
         layout_tabbar(hwnd);
         layout_chat(hwnd);
+        layout_inputbar(hwnd);
         return 0;
 
     case WM_COMMAND:
         switch (LOWORD(wp)) {
+        case IDIB_SEND:
+            do_send_or_abort();
+            break;
+        case IDIB_MODEL:
+            if (HIWORD(wp) == CBN_SELCHANGE && s_app != NULL)
+                app_set_model(s_app, inputbar_selected_model());
+            break;
         case IDM_NEW_CHAT:
-            /* later: start a fresh session */
+            if (!app_busy(s_app) && session_add_blank() != NULL) {
+                tabs_refresh(s_nsess - 1);
+                show_session(s_nsess - 1);
+            }
             break;
         case IDM_CLOSE_CHAT:
-            /* later: close current session */
+            if (!app_busy(s_app))
+                close_session(s_cur);
             break;
         case IDM_RECALL:
             /* later: app_recall() */
@@ -330,9 +528,12 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         return 0;
 
     case WM_DESTROY:
-#if DEMO_TABS
-        demo_tabs_free();
-#endif
+        KillTimer(hwnd, TIMER_PUMP_ID);
+        if (s_app != NULL) {
+            app_free(s_app);    /* cancels + joins a running worker */
+            s_app = NULL;
+        }
+        sessions_free_all();
         PostQuitMessage(0);
         return 0;
     }
@@ -374,18 +575,37 @@ HWND ui_mainwin_init(HINSTANCE inst, int ncmdshow, Config *cfg)
 
     s_tabbar = tabbar_create(hwnd);
     s_chat = chatview_create(hwnd);
+    s_input = inputbar_create(hwnd);
     layout_tabbar(hwnd);
     layout_chat(hwnd);
+    layout_inputbar(hwnd);
     /* Task 16 background: the config is already loaded (main.c copied
      * it into g_cfg before this call) and the chatview exists now - it
      * did NOT at config-load time, so this post-create init is the
      * earliest correct wiring point. Empty bg_image / load failure
      * silently keeps the plain white background. */
     chatview_set_background(g_cfg.g.bg_image, g_cfg.g.bg_opacity);
-#if DEMO_TABS
-    demo_tabs_init();
-    if (s_demo[0] != NULL)
-        chatview_set_session(s_demo[0]);
-#endif
+
+    /* the app orchestration layer + its UI event sink */
+    s_app = app_new(&g_cfg);
+    if (s_app != NULL) {
+        app_set_events(s_app, &APP_EV, NULL);
+        inputbar_set_models(&g_cfg);
+        app_set_model(s_app, inputbar_selected_model());
+    }
+
+    /* real sessions from the history dir (falls back to one blank) */
+    if (g_cfg.g.history_dir[0] != '\0')
+        CreateDirectoryA(g_cfg.g.history_dir, NULL);  /* ok if already there */
+    sessions_init();
+    if (s_nsess > 0) {
+        tabs_refresh(0);
+        show_session(0);
+    } else {
+        tabs_refresh(-1);
+        chatview_set_session(NULL);
+    }
+
+    SetTimer(hwnd, TIMER_PUMP_ID, TIMER_PUMP_MS, NULL);
     return hwnd;
 }

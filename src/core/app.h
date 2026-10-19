@@ -49,6 +49,14 @@ typedef struct {
 void app_set_events(App*, const AppEvents*, void *ctx);
 
 /*
+ * Select the model the worker thread sends with: an index into the
+ * Config.m[] snapshot taken at app_new(). -1 or an out-of-range index is
+ * rejected (the previous selection stays). The default selection is 0.
+ * Call on the UI thread before app_send(). Returns 0 on success.
+ */
+int  app_set_model(App*, int model_idx);
+
+/*
  * Drain the worker->UI event queue. Call on the UI thread (timer or
  * message driven) or directly from tests; safe to call when empty.
  */

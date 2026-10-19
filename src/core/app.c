@@ -56,6 +56,7 @@ struct App {
     long q_push_fail_at;        /* test-only: one-shot fail the n-th q_push */
     int busy;                   /* owned by the UI/test thread only */
     int oom;                    /* fragment-append OOM seen by the pump */
+    int model_idx;              /* selected Config.m[] entry (see app_set_model) */
     Session *sess;              /* session of the in-flight send */
     int msg_idx;                /* assistant message being filled */
 
@@ -190,11 +191,12 @@ static void worker_main(void *arg)
     w.err[0] = '\0';
 
     if (a->transport != NULL)
-        rc = a->transport(&a->cfg.m[0], &a->cfg.p, a->sess, &WORKER_EV, &w,
-                          &a->cancel, w.err, (int)sizeof(w.err));
+        rc = a->transport(&a->cfg.m[a->model_idx], &a->cfg.p, a->sess,
+                          &WORKER_EV, &w, &a->cancel, w.err,
+                          (int)sizeof(w.err));
     else
-        rc = llm_send(&a->cfg.m[0], &a->cfg.p, a->sess, &WORKER_EV, &w,
-                      &a->cancel, w.err, (int)sizeof(w.err));
+        rc = llm_send(&a->cfg.m[a->model_idx], &a->cfg.p, a->sess, &WORKER_EV,
+                      &w, &a->cancel, w.err, (int)sizeof(w.err));
 
     /* a lost terminal node would leave app_busy() stuck forever, so flag
        it; the pump synthesizes the terminal event (on_error) instead */
@@ -358,6 +360,7 @@ App *app_new(const Config *cfg)
     else
         config_defaults(&a->cfg);
     a->msg_idx = -1;
+    a->model_idx = 0;
     InitializeCriticalSection(&a->qlock);
     return a;
 }
@@ -394,6 +397,14 @@ void app_set_transport_hook(App *a, AppTransportFn fn)
 {
     if (a != NULL)
         a->transport = fn;
+}
+
+int app_set_model(App *a, int model_idx)
+{
+    if (a == NULL || model_idx < 0 || model_idx >= a->cfg.n_models)
+        return -1;
+    a->model_idx = model_idx;
+    return 0;
 }
 
 void app_test_q_push_fail_at(App *a, long n)

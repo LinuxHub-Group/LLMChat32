@@ -119,6 +119,11 @@ void ui_set_a(HWND hwnd, const char *utf8)
     SetWindowTextA(hwnd, buf);
 }
 
+void ui_acp_a(char *out, int cap, const char *utf8)
+{
+    to_acp(utf8, out, cap);
+}
+
 int ui_msg_a(HWND owner, const char *utf8_text, const char *utf8_title,
              UINT flags)
 {

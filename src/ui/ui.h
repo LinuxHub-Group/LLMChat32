@@ -45,6 +45,11 @@ int ui_text_width(HDC hdc, const char *utf8);
 /* SetWindowTextA after converting utf8 to the ANSI code page. */
 void ui_set_a(HWND hwnd, const char *utf8);
 
+/* Convert utf8 into out (cap bytes) as ANSI code page bytes, for A-APIs
+ * that take a string argument rather than a window handle (e.g. combo box
+ * CB_ADDSTRING/CB_INSERTSTRING). Same truncation rules as ui_set_a. */
+void ui_acp_a(char *out, int cap, const char *utf8);
+
 /* MessageBoxA after converting text/title to the ANSI code page.
  * Returns the MessageBoxA result (IDOK/IDYES/...). */
 int ui_msg_a(HWND owner, const char *utf8_text, const char *utf8_title,
