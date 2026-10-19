@@ -36,7 +36,7 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe tests\test_llm_stream.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe tests\test_llm_stream.exe tests\test_app.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
@@ -92,6 +92,13 @@ tests\test_llm_stream.exe: src\tests\test_llm_stream.c src\core\llm.h src\core\l
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_llm_stream.exe src\tests\test_llm_stream.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
+# 应用编排层: 工作线程跑 llm_send (经 app_set_transport_hook 可被测试替换),
+# 锁队列 + app_pump 移交碎片/终态事件。链接全栈 + wolfssl (与
+# test_llm_stream 一致)。
+tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c src\core\history.h src\core\history.c $(WOLFSSL_LIB)
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_app.exe src\tests\test_app.c src\core\app.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c src\core\history.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
 	@if exist build\bomscan.obj del build\bomscan.obj
@@ -108,4 +115,5 @@ clean: .SYMBOLIC
 	@if exist tests\test_tls.exe del tests\test_tls.exe
 	@if exist tests\test_llm_req.exe del tests\test_llm_req.exe
 	@if exist tests\test_llm_stream.exe del tests\test_llm_stream.exe
+	@if exist tests\test_app.exe del tests\test_app.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)
