@@ -44,6 +44,16 @@ void chatview_invalidate_msg(int msg_idx);
 /* Pin the view to the newest message and repaint. */
 void chatview_scroll_bottom(void);
 
+/* Set (or clear) the background image. path_utf8 is decoded, blended
+ * over white at opacity (0-100; clamped, <= 0 means plain white) and
+ * pinned to the client bottom-right corner on every repaint, under the
+ * bubbles and independent of scrolling. NULL or empty path clears the
+ * image back to plain white. The old bitmap is freed on every call;
+ * a missing file or decode failure silently keeps the white background.
+ * Callable before the view exists (startup): the bitmap is built
+ * lazily-owned state and the first paint uses it. */
+void chatview_set_background(const char *path_utf8, int opacity);
+
 #ifdef __cplusplus
 }
 #endif

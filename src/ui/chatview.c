@@ -26,6 +26,15 @@
  * [0, max(0, content_h - view_h)]. s_pin_bottom re-pins the view to the
  * end on every relayout while set (cleared by scrolling away from the
  * bottom, restored by reaching it again or by chatview_scroll_bottom()).
+ *
+ * Background (Task 16): an optional image decoded through image.c and
+ * pre-blended over white with draw_blend_white() at the configured
+ * opacity into a 24-bit bottom-up DIB (s_bg_bmp). Painting order is
+ * white fill -> background BitBlt anchored at the client bottom-right
+ * corner (cw - w, ch - h; fixed to the control, never scroll-coupled,
+ * no tiling) -> bubbles -> scrollbar. Re-setting frees and rebuilds the
+ * bitmap; a missing path or a decode failure silently yields the plain
+ * white background (a status-strip note was judged YAGNI).
  */
 #include "chatview.h"
 
@@ -33,6 +42,7 @@
 #include <string.h>
 #include <windows.h>
 
+#include "../core/image.h"
 #include "../core/utf.h"
 #include "draw.h"
 #include "strings.h"
@@ -95,6 +105,12 @@ static HGDIOBJ s_oldbmp = NULL;
 static int     s_bw = 0;
 static int     s_bh = 0;
 
+static HDC     s_bg_dc = NULL;    /* background DIB + its DC      */
+static HBITMAP s_bg_bmp = NULL;
+static HGDIOBJ s_bg_old = NULL;   /* stock bitmap from SelectObject */
+static int     s_bg_w = 0;
+static int     s_bg_h = 0;
+
 static int     s_drag = 0;        /* scrollbar thumb drag state   */
 static int     s_drag_off = 0;
 
@@ -111,6 +127,89 @@ static char *cv_tbuf(int bytes)
         s_tcap = bytes;
     }
     return s_tbuf;
+}
+
+/* ------------------------------------------------------------------ */
+/* background image (Task 16)                                          */
+
+static void cv_bg_free(void)
+{
+    if (s_bg_dc != NULL) {
+        if (s_bg_old != NULL)
+            SelectObject(s_bg_dc, s_bg_old);
+        DeleteDC(s_bg_dc);
+        s_bg_dc = NULL;
+        s_bg_old = NULL;
+    }
+    if (s_bg_bmp != NULL) {
+        DeleteObject(s_bg_bmp);
+        s_bg_bmp = NULL;
+    }
+    s_bg_w = 0;
+    s_bg_h = 0;
+}
+
+/* Decode path, blend over white at opacity into a 24-bit bottom-up DIB
+ * (BGR rows), keep it selected in s_bg_dc for paint-time BitBlt.
+ * Returns 0 on success; on any failure the background stays plain white
+ * (cv_bg_free() has already run, so s_bg_bmp is NULL). */
+static int cv_bg_build(const char *path, int opacity)
+{
+    unsigned char *rgba = NULL;
+    unsigned char *blend = NULL;
+    unsigned char *bits;
+    BITMAPINFO bi;
+    HBITMAP bmp;
+    int w, h, stride, x, y;
+
+    if (image_decode_file(path, &w, &h, &rgba) != 0)
+        return -1;
+    blend = (unsigned char *)malloc((size_t)w * (size_t)h * 3u);
+    if (blend == NULL) {
+        image_free(rgba);
+        return -1;
+    }
+    draw_blend_white(rgba, w * h, opacity, blend);  /* R,G,B rows */
+    image_free(rgba);
+
+    memset(&bi, 0, sizeof bi);
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = h;      /* positive: bottom-up DIB */
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 24;
+    bi.bmiHeader.biCompression = BI_RGB;
+    bmp = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, (void **)&bits,
+                           NULL, 0);
+    if (bmp == NULL || bits == NULL) {
+        free(blend);
+        if (bmp != NULL)
+            DeleteObject(bmp);
+        return -1;
+    }
+    stride = ((w * 3 + 3) / 4) * 4;
+    for (y = 0; y < h; y++) {
+        unsigned char *dst = bits + (size_t)(h - 1 - y) * (size_t)stride;
+        const unsigned char *src = blend + (size_t)y * (size_t)w * 3u;
+
+        for (x = 0; x < w; x++) {
+            dst[x * 3 + 0] = src[x * 3 + 2];   /* B */
+            dst[x * 3 + 1] = src[x * 3 + 1];   /* G */
+            dst[x * 3 + 2] = src[x * 3 + 0];   /* R */
+        }
+    }
+    free(blend);
+
+    s_bg_dc = CreateCompatibleDC(NULL);
+    if (s_bg_dc == NULL) {
+        DeleteObject(bmp);
+        return -1;
+    }
+    s_bg_old = SelectObject(s_bg_dc, bmp);
+    s_bg_bmp = bmp;
+    s_bg_w = w;
+    s_bg_h = h;
+    return 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -513,6 +612,12 @@ static void paint_view(HDC m, int cw, int ch)
     rc.bottom = ch;
     FillRect(m, &rc, GetSysColorBrush(COLOR_WINDOW));
 
+    /* pre-blended background, pinned to the client bottom-right corner;
+     * anchored to the control - s_scroll is deliberately not involved */
+    if (s_bg_bmp != NULL && s_bg_w > 0 && s_bg_h > 0)
+        BitBlt(m, cw - s_bg_w, ch - s_bg_h, s_bg_w, s_bg_h,
+               s_bg_dc, 0, 0, SRCCOPY);
+
     /* ui_font must be selected before layout_build: measuring and
      * drawing must use the same font or the wrap metrics disagree */
     old_font = SelectObject(m, ui_font());
@@ -694,6 +799,7 @@ static LRESULT CALLBACK chatview_wndproc(HWND hwnd, UINT msg, WPARAM wp,
 
     case WM_DESTROY:
         layout_free();
+        cv_bg_free();
         free(s_tbuf);
         s_tbuf = NULL;
         s_tcap = 0;
@@ -770,4 +876,20 @@ void chatview_scroll_bottom(void)
     s_layout_valid = 0;
     if (s_hwnd != NULL)
         InvalidateRect(s_hwnd, NULL, FALSE);
+}
+
+void chatview_set_background(const char *path_utf8, int opacity)
+{
+    /* Always rebuild from scratch: the old bitmap is freed first so an
+     * opacity/path change cannot leak or keep stale pixels. Empty path,
+     * opacity <= 0 (the blended result would be pure white anyway) or a
+     * decode failure all leave s_bg_bmp NULL = plain white background.
+     * Load failures are silent by choice (YAGNI: no status-strip note);
+     * opacity is clamped inside draw_blend_white, and cv_bg_build
+     * re-clamps implicitly via the same helper. */
+    cv_bg_free();
+    if (path_utf8 != NULL && path_utf8[0] != '\0' && opacity > 0)
+        (void)cv_bg_build(path_utf8, opacity);
+    if (s_hwnd != NULL)
+        InvalidateRect(s_hwnd, NULL, TRUE);
 }

@@ -376,6 +376,12 @@ HWND ui_mainwin_init(HINSTANCE inst, int ncmdshow, Config *cfg)
     s_chat = chatview_create(hwnd);
     layout_tabbar(hwnd);
     layout_chat(hwnd);
+    /* Task 16 background: the config is already loaded (main.c copied
+     * it into g_cfg before this call) and the chatview exists now - it
+     * did NOT at config-load time, so this post-create init is the
+     * earliest correct wiring point. Empty bg_image / load failure
+     * silently keeps the plain white background. */
+    chatview_set_background(g_cfg.g.bg_image, g_cfg.g.bg_opacity);
 #if DEMO_TABS
     demo_tabs_init();
     if (s_demo[0] != NULL)

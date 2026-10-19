@@ -16,7 +16,7 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj
 APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
@@ -41,7 +41,7 @@ build\tabbar.obj: src\ui\tabbar.c src\ui\tabbar.h src\ui\mainwin.h src\ui\ui.h s
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\tabbar.obj src\ui\tabbar.c
 
-build\chatview.obj: src\ui\chatview.c src\ui\chatview.h src\ui\draw.h src\ui\ui.h src\ui\strings.h src\core\session.h src\core\utf.h
+build\chatview.obj: src\ui\chatview.c src\ui\chatview.h src\ui\draw.h src\ui\ui.h src\ui\strings.h src\core\session.h src\core\utf.h src\core\image.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\chatview.obj src\ui\chatview.c
 
@@ -65,6 +65,13 @@ build\toml.obj: src\core\toml.c src\core\toml.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\toml.obj src\core\toml.c
 
+# image decoding: stb_image implementation TU (see image.c header for
+# the STBI_NO_* configuration, which is what keeps it -wx clean - no
+# per-file warning suppressions needed, unlike third_party\wolfssl).
+build\image.obj: src\core\image.c src\core\image.h third_party\stb_image.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\image.obj src\core\image.c
+
 # icon-only resource; the menu is built from LS() strings in code
 build\app.res: src\res\app.rc src\res\app.ico
 	@if not exist build mkdir build
@@ -78,7 +85,7 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe tests\test_llm_stream.exe tests\test_app.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe tests\test_llm_stream.exe tests\test_app.exe tests\test_image.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
@@ -141,6 +148,14 @@ tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_app.exe src\tests\test_app.c src\core\app.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c src\core\history.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
+# image 解码层: stb_image 封装 (PNG/JPEG/BMP/GIF/TGA/PSD -> RGBA8)。
+# 混合断言在 draw.c 的 draw_blend_white（纯整数，无 GDI），但 draw.obj
+# 里的 ui_font/draw_bubble 引用 g_cfg 与 GDI，故链接 config/toml/utf +
+# gdi32 (与 app 一致).
+tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\core\config.c src\core\toml.c src\core\utf.c gdi32.lib
+
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
 	@if exist build\bomscan.obj del build\bomscan.obj
@@ -155,6 +170,7 @@ clean: .SYMBOLIC
 	@if exist build\utf.obj del build\utf.obj
 	@if exist build\config.obj del build\config.obj
 	@if exist build\toml.obj del build\toml.obj
+	@if exist build\image.obj del build\image.obj
 	@if exist build\app.res del build\app.res
 	@if exist build\wolfssl.lib del build\wolfssl.lib
 	@if exist tests\test_tls_smoke.exe del tests\test_tls_smoke.exe
@@ -168,4 +184,5 @@ clean: .SYMBOLIC
 	@if exist tests\test_llm_req.exe del tests\test_llm_req.exe
 	@if exist tests\test_llm_stream.exe del tests\test_llm_stream.exe
 	@if exist tests\test_app.exe del tests\test_app.exe
+	@if exist tests\test_image.exe del tests\test_image.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)

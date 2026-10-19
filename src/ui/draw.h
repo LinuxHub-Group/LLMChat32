@@ -38,6 +38,17 @@ extern "C" {
  * the tail at the bottom-left edge, otherwise bottom-right. */
 void draw_bubble(HDC memdc, const RECT *rc, int left_side, COLORREF fill);
 
+/* Pre-mix RGBA pixels over white at a global opacity, producing RGB24.
+ * rgba points at 4*npixels bytes in R,G,B,A order; the per-pixel alpha
+ * is IGNORED - opacity replaces it as the single mix factor. rgb
+ * receives 3*npixels bytes in R,G,B order (swap to B,G,R when filling
+ * a bottom-up 24-bit DIB). Per byte, with o = opacity clamped 0..100:
+ *     out = (c*o + 255*(100-o) + 50) / 100        (round half up)
+ * opacity 0 -> pure white, 100 -> the original colors. Pure integer
+ * arithmetic (peak ~25.6k, far from INT_MAX); no GDI handles involved. */
+void draw_blend_white(const unsigned char *rgba, int npixels, int opacity,
+                      unsigned char *rgb);
+
 /* Cached UI font: CreateFontW(-g_cfg.g.font_size, DEFAULT_CHARSET) with
  * the face name from g_cfg.g.font_name (fallback "MS Shell Dlg"), both
  * converted/validated at runtime - no L"" literals. The returned HFONT

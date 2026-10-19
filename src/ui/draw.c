@@ -1,5 +1,6 @@
 /*
- * draw.c - bubble rendering and the shared UI font (see draw.h).
+ * draw.c - bubble rendering, RGBA-over-white blending and the shared
+ * UI font (see draw.h).
  *
  * draw_bubble fills the tail polygon and the RoundRect body with one
  * brush; the AI (white) bubble is then framed with a 1px silver pen and
@@ -81,6 +82,29 @@ void draw_bubble(HDC memdc, const RECT *rc, int left_side, COLORREF fill)
     SelectObject(memdc, old_pen);
     SelectObject(memdc, old_brush);
     DeleteObject(brush);
+}
+
+void draw_blend_white(const unsigned char *rgba, int npixels, int opacity,
+                      unsigned char *rgb)
+{
+    int i, o, base;
+
+    if (rgba == NULL || rgb == NULL || npixels <= 0)
+        return;
+    if (opacity < 0)
+        opacity = 0;
+    if (opacity > 100)
+        opacity = 100;
+    o = opacity;
+    base = 255 * (100 - o) + 50;   /* white part + round-half-up bias */
+    for (i = 0; i < npixels; i++) {
+        const unsigned char *s = rgba + (size_t)i * 4;
+        unsigned char *d = rgb + (size_t)i * 3;
+
+        d[0] = (unsigned char)((s[0] * o + base) / 100);
+        d[1] = (unsigned char)((s[1] * o + base) / 100);
+        d[2] = (unsigned char)((s[2] * o + base) / 100);
+    }
 }
 
 HFONT ui_font(void)
