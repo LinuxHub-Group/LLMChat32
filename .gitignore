@@ -1,0 +1,15 @@
+# 工具链为用户放置的第三方软件，不入库
+ow_portable_v2_stable/
+
+# 构建产物
+*.obj
+*.exe
+*.map
+*.err
+*.tmp
+build/
+
+# 运行时产物
+history/
+config.toml
+*.log
