@@ -271,11 +271,15 @@ int toml_parse(const char *text, int len,
     p.ctx = ctx;
     while (p.cur < p.end) {
         const char *eol = p.cur;
+        const char *le;
         int rc;
 
         while (eol < p.end && *eol != '\n')
             eol++;
-        rc = parse_line(&p, p.cur, eol);
+        le = eol;
+        if (le > p.cur && le[-1] == '\r')
+            le--;   /* tolerate CRLF line endings (Notepad default) */
+        rc = parse_line(&p, p.cur, le);
         if (rc != 0)
             return rc;
         p.cur = (eol < p.end) ? eol + 1 : eol;

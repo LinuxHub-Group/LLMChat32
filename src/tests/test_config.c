@@ -222,6 +222,26 @@ int main(void)
     CHECK(cfg.m[1].verify_tls == 0);
     remove(SAMPLE_PATH);
 
+    /* --- CRLF line endings (Notepad/Notepad++ default) parse identically --- */
+    {
+        char crlf[sizeof(g_sample) * 2];
+        const char *s = g_sample;
+        char *d = crlf;
+        Config cfg2;
+
+        while (*s) {
+            if (*s == '\n')
+                *d++ = '\r';
+            *d++ = *s++;
+        }
+        *d = '\0';
+        CHECK(write_file(SAMPLE_PATH, crlf) == 0);
+        err[0] = '\0';
+        CHECK(config_load(&cfg2, SAMPLE_PATH, err, sizeof err) == 0);
+        CHECK(cfg_equal(&cfg, &cfg2) == 1);
+        remove(SAMPLE_PATH);
+    }
+
     /* --- missing file: defaults, return 0 --- */
     err[0] = '\0';
     CHECK(config_load(&cfg, "__t5_no_such_file.toml", err, sizeof err) == 0);
