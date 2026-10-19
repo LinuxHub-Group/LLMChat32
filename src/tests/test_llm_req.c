@@ -11,7 +11,8 @@
  *      of the assistant message is NOT sent; image block goes out as the
  *      text "[图片] url"; emoji/UTF-8 content survives byte-for-byte;
  *      thinking:{type:"enabled",budget_tokens} with the effort mapping
- *      low=2000/medium=8000/high=32000; stream:true.
+ *      low=2000/medium=8000/high=32000 (thinking_budget>0 overrides);
+ *      stream:true.
  *   2: chat - path /v1/chat/completions; reasoning_effort at top level
  *      when reasoning=1 (absent when reasoning=0); temperature present
  *      only when >= 0; system travels as a role:"system" messages entry;
@@ -101,7 +102,7 @@ static void make_model(ModelCfg *m, const char *api)
     m->stream = 1;
     m->reasoning = 1;
     strcpy(m->reasoning_effort, "high");
-    m->thinking_budget = 8000;
+    m->thinking_budget = 0;     /* <=0: fall back to the effort mapping */
     m->max_tokens = 4096;
     m->max_context_chars = 0;   /* unlimited */
     m->temperature = -1.0;      /* <0: do not send */
@@ -209,6 +210,28 @@ int main(void)
     if (root != NULL) {
         CHECK(json_num(json_obj_get(json_obj_get(root, "thinking"),
                                     "budget_tokens")) == 2000.0);
+        json_free(root);
+    }
+
+    /* thinking_budget > 0 overrides the effort mapping (spec section 7) */
+    m.thinking_budget = 16000;
+    strcpy(m.reasoning_effort, "medium");
+    root = build_parse(&m, s, buf, (int)sizeof(buf), err, (int)sizeof(err));
+    CHECK(root != NULL);
+    if (root != NULL) {
+        CHECK(json_num(json_obj_get(json_obj_get(root, "thinking"),
+                                    "budget_tokens")) == 16000.0);
+        json_free(root);
+    }
+
+    /* thinking_budget <= 0 falls back to the effort mapping */
+    m.thinking_budget = 0;
+    strcpy(m.reasoning_effort, "high");
+    root = build_parse(&m, s, buf, (int)sizeof(buf), err, (int)sizeof(err));
+    CHECK(root != NULL);
+    if (root != NULL) {
+        CHECK(json_num(json_obj_get(json_obj_get(root, "thinking"),
+                                    "budget_tokens")) == 32000.0);
         json_free(root);
     }
     strcpy(m.reasoning_effort, "high");

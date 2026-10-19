@@ -20,11 +20,12 @@
  *
  * reasoning_effort -> thinking budget_tokens mapping (anthropic):
  *   low = 2000, medium = 8000, high = 32000; an unknown/empty effort
- *   falls back to medium (8000).
+ *   falls back to medium (8000). ModelCfg.thinking_budget > 0 overrides
+ *   the mapped value (user-configured budget, spec section 7).
  * temperature is emitted only when ModelCfg.temperature >= 0.
  *
  * Context truncation (llm_truncate_context, spec section 6): estimate
- * is the character count of text blocks (1 token ~= 3.5 chars). The
+ * is the byte count (strlen) of text blocks, 1 token ~= 3.5 chars. The
  * oldest user/assistant messages are dropped until the remaining
  * window fits max_context_chars; <= 0 means unlimited (every message
  * kept). System messages are never counted and never dropped - the

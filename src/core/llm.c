@@ -46,6 +46,17 @@ static long effort_budget(const char *effort)
     return 8000;    /* medium, and unknown/empty falls back to medium */
 }
 
+/*
+ * Effective thinking budget: a user-configured ModelCfg.thinking_budget
+ * > 0 wins; otherwise fall back to the reasoning_effort mapping.
+ */
+static long thinking_budget(const ModelCfg *m)
+{
+    if (m->thinking_budget > 0)
+        return m->thinking_budget;
+    return effort_budget(m->reasoning_effort);
+}
+
 /* Estimated send cost of one message: text blocks only (spec section 6);
    thinking is never sent and images ride as a short "[图片] url" line,
    so neither is worth counting. */
@@ -294,7 +305,7 @@ int llm_build_request(const ModelCfg *m, const Session *s,
             jb_key(&b, "type");
             jb_str(&b, "enabled");
             jb_key(&b, "budget_tokens");
-            jb_int(&b, effort_budget(m->reasoning_effort));
+            jb_int(&b, thinking_budget(m));
             jb_obj_end(&b);
         }
         if (jb_messages(&b, "messages", s, first_msg_idx, 0) != 0) {
