@@ -13,7 +13,10 @@
  * last same-kind block), terminal nodes save the Session to the history
  * dir (tmp+rename via history_save) and then fire exactly one of
  * on_done/on_error followed by on_busy(0). A failed save fires on_error
- * with the disk message and leaves the in-memory Session untouched.
+ * with the disk message and leaves the in-memory Session untouched. If
+ * the worker cannot queue its terminal node at all (allocation failure),
+ * it sets term_lost and app_pump() synthesizes the terminal event as
+ * on_error("out of memory"), so app_busy() can never wedge.
  *
  * app_free() cancels and joins a still-running worker thread
  * (WaitForSingleObject on the _beginthread handle, then CloseHandle) and
@@ -48,6 +51,9 @@ struct App {
     AppTransportFn transport;   /* NULL -> real llm_send */
 
     volatile int cancel;        /* set by app_abort, polled by transport */
+    volatile int term_lost;     /* worker: terminal node could not be queued */
+    long q_push_count;          /* test-only OOM injection counter */
+    long q_push_fail_at;        /* test-only: one-shot fail the n-th q_push */
     int busy;                   /* owned by the UI/test thread only */
     int oom;                    /* fragment-append OOM seen by the pump */
     Session *sess;              /* session of the in-flight send */
@@ -62,12 +68,18 @@ struct App {
 
 /* --- queue (worker pushes, pump pops) ------------------------------------- */
 
-static void q_push(App *a, int type, int finish, const char *data, int len)
+static int q_push(App *a, int type, int finish, const char *data, int len)
 {
-    QNode *n = (QNode *)malloc(sizeof(QNode));
+    QNode *n;
 
+    /* test-only OOM injection: one-shot failure of the n-th push */
+    if (a->q_push_fail_at > 0 && ++a->q_push_count >= a->q_push_fail_at) {
+        a->q_push_fail_at = 0;
+        return -1;
+    }
+    n = (QNode *)malloc(sizeof(QNode));
     if (n == NULL)
-        return;                 /* OOM: event dropped (terminal included) */
+        return -1;              /* OOM: caller decides how to recover */
     n->next = NULL;
     n->type = type;
     n->finish = finish;
@@ -75,7 +87,7 @@ static void q_push(App *a, int type, int finish, const char *data, int len)
     n->data = (char *)malloc((size_t)len + 1);
     if (n->data == NULL) {
         free(n);
-        return;
+        return -1;
     }
     if (len > 0)
         memcpy(n->data, data, (size_t)len);
@@ -88,6 +100,7 @@ static void q_push(App *a, int type, int finish, const char *data, int len)
         a->qhead = n;
     a->qtail = n;
     LeaveCriticalSection(&a->qlock);
+    return 0;
 }
 
 static QNode *q_pop(App *a)
@@ -183,13 +196,18 @@ static void worker_main(void *arg)
         rc = llm_send(&a->cfg.m[0], &a->cfg.p, a->sess, &WORKER_EV, &w,
                       &a->cancel, w.err, (int)sizeof(w.err));
 
+    /* a lost terminal node would leave app_busy() stuck forever, so flag
+       it; the pump synthesizes the terminal event (on_error) instead */
     if (w.has_err) {
-        q_push(a, QERROR, 0, w.err, (int)strlen(w.err));
+        if (q_push(a, QERROR, 0, w.err, (int)strlen(w.err)) != 0)
+            a->term_lost = 1;
     } else if (rc != 0) {
         const char *msg = w.err[0] != '\0' ? w.err : "request failed";
-        q_push(a, QERROR, 0, msg, (int)strlen(msg));
+        if (q_push(a, QERROR, 0, msg, (int)strlen(msg)) != 0)
+            a->term_lost = 1;
     } else {
-        q_push(a, QDONE, w.finish, NULL, 0);
+        if (q_push(a, QDONE, w.finish, NULL, 0) != 0)
+            a->term_lost = 1;
     }
 }
 
@@ -281,7 +299,9 @@ static void pump_term(App *a, QNode *n)
         if (a->ev.on_error)
             a->ev.on_error(a->ev_ctx, a->msg_idx,
                            serr[0] != '\0' ? serr : "history save failed");
-    } else if (a->oom) {
+    } else if (a->oom || n == NULL) {
+        /* n == NULL: the worker's terminal node was lost to OOM and the
+           pump synthesized this terminal event */
         if (a->ev.on_error)
             a->ev.on_error(a->ev_ctx, a->msg_idx, "out of memory");
     } else if (n->type == QERROR) {
@@ -316,6 +336,12 @@ void app_pump(App *a)
             pump_term(a, n);
         free(n->data);
         free(n);
+    }
+    /* a terminal node lost to worker-side OOM would wedge busy forever:
+       synthesize the terminal event here, exactly once */
+    if (a->term_lost && a->busy) {
+        a->term_lost = 0;
+        pump_term(a, NULL);
     }
 }
 
@@ -368,6 +394,14 @@ void app_set_transport_hook(App *a, AppTransportFn fn)
 {
     if (a != NULL)
         a->transport = fn;
+}
+
+void app_test_q_push_fail_at(App *a, long n)
+{
+    if (a != NULL) {
+        a->q_push_count = 0;
+        a->q_push_fail_at = n;
+    }
 }
 
 int app_busy(App *a)

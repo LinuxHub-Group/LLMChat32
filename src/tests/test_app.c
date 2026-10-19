@@ -412,6 +412,39 @@ int main(void)
     CHECK(count_type(EV_ERROR) == 1);
     session_free(s);
 
+    /* === scenario 5: terminal queue push OOM -> busy recovers, on_error === */
+    /* script_ok pushes 3 fragments + 1 terminal node; fail the 4th push so
+       the worker's QDONE is lost and the pump must synthesize on_error */
+    s = session_new("app7");
+    sink_reset();
+    sc.steps = script_ok;
+    sc.n = 3;
+    sc.check_cancel = 0;
+    app_test_q_push_fail_at(a, 4);
+    CHECK(app_send(a, s, "hi") == 0);
+    pump_until_idle(a);
+    CHECK(app_busy(a) == 0);                  /* busy cannot wedge */
+    CHECK(count_type(EV_ERROR) == 1);
+    CHECK(g_ev[g_nev - 2].type == EV_ERROR &&
+          strcmp(g_ev[g_nev - 2].text, "out of memory") == 0);
+    CHECK(count_type(EV_DONE) == 0);
+    CHECK(count_type(EV_BUSY) == 2 &&
+          g_ev[g_nev - 1].type == EV_BUSY && g_ev[g_nev - 1].num == 0);
+    /* fragments arrived before the loss and stay in memory, and the
+       terminal event still saved them */
+    CHECK(s->nm == 2);
+    blocks_join(buf, sizeof buf, s, 1, 0);
+    CHECK(strcmp(buf, "Hello world") == 0);
+    s2 = session_new("app7");
+    err[0] = '\0';
+    CHECK(history_load(s2, DIR_RW "\\app7.json", err, sizeof err) == 0);
+    CHECK(s2->nm == 2);
+    blocks_join(buf, sizeof buf, s2, 1, 0);
+    CHECK(strcmp(buf, "Hello world") == 0);
+    session_free(s2);
+    session_free(s);
+    remove(DIR_RW "\\app7.json");
+
     /* app_free with a still-pending stream must not crash or leak */
     s = session_new("app6");
     sink_reset();

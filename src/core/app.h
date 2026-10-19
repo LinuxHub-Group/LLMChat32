@@ -65,6 +65,14 @@ typedef int (*AppTransportFn)(const ModelCfg *m, const ProxyCfg *proxy,
                               char *err, int errcap);
 void app_set_transport_hook(App*, AppTransportFn);
 
+/*
+ * Test-only hook: make the n-th worker->pump queue allocation fail (one
+ * shot; 0 disables). The pump then synthesizes the terminal event as
+ * on_error("out of memory"), so a lost terminal node can never wedge
+ * app_busy(). Used by test_app to cover the allocation-failure path.
+ */
+void app_test_q_push_fail_at(App*, long n);
+
 #ifdef __cplusplus
 }
 #endif
