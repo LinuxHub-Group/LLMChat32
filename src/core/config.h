@@ -40,6 +40,12 @@ typedef struct {
 } ModelCfg;
 typedef struct { GeneralCfg g; ProxyCfg p; ModelCfg m[32]; int n_models; } Config;
 
+/* Process-wide active configuration. Owned by main.c: filled from
+ * config_load() before the UI is created; read-only for everyone else
+ * (e.g. ui_font() takes g_cfg.g.font_name/font_size). Tests do not use
+ * it - every core API takes explicit Config* parameters. */
+extern Config g_cfg;
+
 /* Fill cfg with defaults; any pre-existing content is discarded. */
 void config_defaults(Config*);
 

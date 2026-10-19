@@ -22,6 +22,9 @@
 
 #define MAX_MODELS 32
 
+/* see config.h: filled by main.c after config_load(), read-only elsewhere */
+Config g_cfg;
+
 static void set_err(char *err, int errcap, const char *msg)
 {
     if (err && errcap > 0) {

@@ -6,6 +6,8 @@
  * wrappers:
  *
  *   - ui_text_w / ui_drawtext_w: utf8_to_utf16 -> TextOutW / DrawTextW
+ *   - ui_drawtext_ww:           DrawTextW on a caller-converted wide
+ *                               string (long chat texts, see ui.h)
  *   - ui_set_a / ui_msg_a:      WideCharToMultiByte(CP_ACP) -> SetWindowTextA
  *                               / MessageBoxA
  *   - menu_append_str / menu_append_sep: AppendMenuA with CP_ACP-converted
@@ -30,6 +32,12 @@ void ui_text_w(HDC hdc, int x, int y, const char *utf8);
 
 /* DrawTextW into rc with fmt (DT_*). Invalid UTF-8 draws nothing. */
 void ui_drawtext_w(HDC hdc, const char *utf8, RECT *rc, UINT fmt);
+
+/* DrawTextW for a caller-converted wide string. This is the outlet for
+ * long texts that would overflow ui_drawtext_w's fixed conversion buffer
+ * (chat message bodies); the caller produces w with utf8_to_utf16, so the
+ * encoding discipline (no UTF-8 handed to an API) is preserved. */
+void ui_drawtext_ww(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt);
 
 /* Pixel width of utf8 under the DC's current font, 0 on failure. */
 int ui_text_width(HDC hdc, const char *utf8);

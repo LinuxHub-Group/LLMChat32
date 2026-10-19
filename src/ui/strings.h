@@ -30,6 +30,10 @@ typedef enum {
     S_BTN_SEND, S_BTN_ABORT, S_THINK_LINK, S_IMAGE_LINK,
     S_CONFIRM_DEL_SESSION, S_SAVE_FAILED, S_ABOUT_TEXT,
     S_TAB_DEMO,          /* temp demo tab title prefix (Task 14; removed by 17/20) */
+    /* temp demo conversation content (Task 15; removed with DEMO_TABS by 17/20) */
+    S_DEMO_U_HELLO, S_DEMO_A_HELLO, S_DEMO_U_POEM, S_DEMO_A_POEM,
+    S_DEMO_U_QE, S_DEMO_A_QE_THINK, S_DEMO_A_QE,
+    S_DEMO_U_TCP, S_DEMO_A_TCP_INT, S_DEMO_A_TCP_BODY,
     S__COUNT
 } StrID;
 
@@ -63,7 +67,17 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_CONFIRM_DEL_SESSION */ "确定要删除该会话吗？",
     /* S_SAVE_FAILED */      "保存失败：",
     /* S_ABOUT_TEXT */       "LLMChat32 —— Windows 98 兼容的 LLM 聊天客户端。\nUTF-8 内核，极简依赖。",
-    /* S_TAB_DEMO */         "演示会话"
+    /* S_TAB_DEMO */         "演示会话",
+    /* S_DEMO_U_HELLO */     "你好！😀 很高兴见到你 ☺",
+    /* S_DEMO_A_HELLO */     "你好！我是 LLMChat32，一个兼容 Windows 98 的 LLM 聊天客户端。试着点击上方的标签页切换会话吧。🙂",
+    /* S_DEMO_U_POEM */      "帮我写一句关于秋天的话 🍂",
+    /* S_DEMO_A_POEM */      "秋风起，落叶黄；晴空一鹤排云上，便引诗情到碧霄。🍁 ✨ ★",
+    /* S_DEMO_U_QE */        "什么是量子纠缠？能配张图吗？",
+    /* S_DEMO_A_QE_THINK */  "用户在问量子纠缠，需要一个通俗比喻和配图。",
+    /* S_DEMO_A_QE */        "量子纠缠是指两个粒子形成关联后，无论相隔多远，测量其中一个会即时决定另一个的状态。🌀 可以把它想成一双分发的手套：看到一只左手，立刻知道远方那只是右手。🧤",
+    /* S_DEMO_U_TCP */       "详细讲讲 TCP 的三次握手 🤝",
+    /* S_DEMO_A_TCP_INT */   "好的！下面是一段比较长的讲解，用来测试折行和滚动条。📡",
+    /* S_DEMO_A_TCP_BODY */  "第一次握手：客户端发送 SYN 报文（序号 seq=x），进入 SYN_SENT 状态。第二次握手：服务端回复 SYN+ACK（序号 seq=y，确认号 ack=x+1），进入 SYN_RCVD 状态。第三次握手：客户端再发送 ACK（确认号 ack=y+1），双方进入 ESTABLISHED 状态。🌐 三次握手同时确认了双方的发送与接收能力，并同步初始序号，避免历史重复连接请求造成混乱。"
 };
 
 const char *const g_strs_en[S__COUNT] = {
@@ -88,7 +102,17 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_CONFIRM_DEL_SESSION */ "Delete this session?",
     /* S_SAVE_FAILED */      "Save failed: ",
     /* S_ABOUT_TEXT */       "LLMChat32 - a Windows 98 compatible LLM chat client.\nUTF-8 core, minimal dependencies.",
-    /* S_TAB_DEMO */         "Demo chat"
+    /* S_TAB_DEMO */         "Demo chat",
+    /* S_DEMO_U_HELLO */     "Hi there! 😀 Nice to meet you ☺",
+    /* S_DEMO_A_HELLO */     "Hello! I am LLMChat32, an LLM chat client compatible with Windows 98. Click the tabs above to switch sessions. 🙂",
+    /* S_DEMO_U_POEM */      "Write me a line about autumn 🍂",
+    /* S_DEMO_A_POEM */      "Autumn wind rises, leaves turn yellow; one crane pierces the cloudless sky. 🍁 ✨ ★",
+    /* S_DEMO_U_QE */        "What is quantum entanglement? Can you attach a picture?",
+    /* S_DEMO_A_QE_THINK */  "The user asks about entanglement; a plain analogy plus an image.",
+    /* S_DEMO_A_QE */        "Entanglement: once two particles correlate, measuring one instantly fixes the other's state, however far apart. 🌀 Think of a pair of gloves mailed to two cities: seeing a left-hand one tells you the far one is right-handed. 🧤",
+    /* S_DEMO_U_TCP */       "Explain the TCP three-way handshake in detail 🤝",
+    /* S_DEMO_A_TCP_INT */   "Sure! The long explanation below exercises line wrapping and the scrollbar. 📡",
+    /* S_DEMO_A_TCP_BODY */  "First handshake: the client sends a SYN (seq=x) and enters SYN_SENT. Second: the server replies SYN+ACK (seq=y, ack=x+1) and enters SYN_RCVD. Third: the client sends ACK (ack=y+1) and both enter ESTABLISHED. 🌐 The handshake verifies both directions and synchronizes initial sequence numbers, so stale duplicate connection requests cause no confusion."
 };
 
 #else

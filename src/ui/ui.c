@@ -89,6 +89,13 @@ void ui_drawtext_w(HDC hdc, const char *utf8, RECT *rc, UINT fmt)
     DrawTextW(hdc, w, -1, rc, fmt);
 }
 
+void ui_drawtext_ww(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
+{
+    if (w == NULL || rc == NULL)
+        return;
+    DrawTextW(hdc, w, -1, rc, fmt);
+}
+
 int ui_text_width(HDC hdc, const char *utf8)
 {
     wchar_t w[UI_WIDE_CAP];

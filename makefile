@@ -16,7 +16,7 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\session.obj build\utf.obj build\config.obj build\toml.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj
 APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
@@ -33,13 +33,21 @@ build\ui.obj: src\ui\ui.c src\ui\ui.h src\ui\strings.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\ui.obj src\ui\ui.c
 
-build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\core\config.h src\core\session.h
+build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\core\config.h src\core\session.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\mainwin.obj src\ui\mainwin.c
 
 build\tabbar.obj: src\ui\tabbar.c src\ui\tabbar.h src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\core\session.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\tabbar.obj src\ui\tabbar.c
+
+build\chatview.obj: src\ui\chatview.c src\ui\chatview.h src\ui\draw.h src\ui\ui.h src\ui\strings.h src\core\session.h src\core\utf.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\chatview.obj src\ui\chatview.c
+
+build\draw.obj: src\ui\draw.c src\ui\draw.h src\core\config.h src\core\utf.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\draw.obj src\ui\draw.c
 
 build\session.obj: src\core\session.c src\core\session.h
 	@if not exist build mkdir build
@@ -141,6 +149,8 @@ clean: .SYMBOLIC
 	@if exist build\ui.obj del build\ui.obj
 	@if exist build\mainwin.obj del build\mainwin.obj
 	@if exist build\tabbar.obj del build\tabbar.obj
+	@if exist build\chatview.obj del build\chatview.obj
+	@if exist build\draw.obj del build\draw.obj
 	@if exist build\session.obj del build\session.obj
 	@if exist build\utf.obj del build\utf.obj
 	@if exist build\config.obj del build\config.obj

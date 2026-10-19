@@ -1,24 +1,29 @@
 /*
- * mainwin.c - main window skeleton: class, menu, tab strip, status strip,
- * command dispatch shell.
+ * mainwin.c - main window skeleton: class, menu, tab strip, chat view,
+ * status strip, command dispatch shell.
  *
  * The client area hosts the tab strip ("LlmTabBar" child, see tabbar.h)
- * in its top ~28px; the chat view lands in the remaining space in a later
- * task. The menu is assembled programmatically from LS() strings - there
- * is no .rc menu. The status bar is a self-drawn strip at the bottom of
- * the client area (FillRect + ui_drawtext_w), not a comctl32 control.
+ * in its top ~28px and the conversation view ("LlmChat" child, see
+ * chatview.h) in the space down to the self-drawn status strip at the
+ * bottom. The menu is assembled programmatically from LS() strings -
+ * there is no .rc menu. The status bar is a self-drawn strip at the
+ * bottom of the client area (FillRect + ui_drawtext_w), not a comctl32
+ * control.
  *
  * DEMO_TABS: with no session-loading layer yet (Tasks 17/20), a first
- * run gets 3 fake sessions so the tab strip is visible and clickable.
+ * run gets 3 fake sessions with fabricated messages so the tab strip is
+ * clickable and the chat view has something to render.
  */
 #include "mainwin.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <windows.h>
 
 #include "../core/config.h"
 #include "../core/session.h"
+#include "chatview.h"
 #include "commands.h"
 #include "strings.h"
 #include "tabbar.h"
@@ -42,9 +47,66 @@ static StrID s_status = S_STATUS_READY;
 static char s_status_text[128];   /* UTF-8 override */
 
 static HWND s_tabbar = NULL;
+static HWND s_chat = NULL;
 
 #if DEMO_TABS
 static Session *s_demo[DEMO_TABS_N];
+
+/* Fabricated conversations exercising the view: mixed short bubbles,
+ * a think block + image block, and a >screen long text for scrolling.
+ * Removed together with DEMO_TABS in Tasks 17/20. */
+static char *demo_long_text(void)
+{
+    const char *para = LS(S_DEMO_A_TCP_BODY);
+    int plen = (int)strlen(para);
+    int reps = 9;
+    char *buf = (char *)malloc((size_t)reps * ((size_t)plen + 16)
+                               + strlen(LS(S_DEMO_A_TCP_INT)) + 4);
+    int off = 0;
+    int r;
+
+    if (buf == NULL)
+        return NULL;
+    strcpy(buf, LS(S_DEMO_A_TCP_INT));
+    strcat(buf, "\n\n");
+    off = (int)strlen(buf);
+    for (r = 1; r <= reps; r++)
+        off += sprintf(buf + off, "%d. %s\n\n", r, para);
+    return buf;
+}
+
+static void demo_fill_sessions(void)
+{
+    Msg *m;
+    char *long_text;
+
+    /* session 1: short mixed conversation (zh + emoji + latin) */
+    m = session_add_msg(s_demo[0], ROLE_USER);
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_HELLO));
+    m = session_add_msg(s_demo[0], ROLE_ASSIST);
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_A_HELLO));
+    m = session_add_msg(s_demo[0], ROLE_USER);
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_POEM));
+    m = session_add_msg(s_demo[0], ROLE_ASSIST);
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_A_POEM));
+
+    /* session 2: think block (link line) + text + image block */
+    m = session_add_msg(s_demo[1], ROLE_USER);
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_QE));
+    m = session_add_msg(s_demo[1], ROLE_ASSIST);
+    msg_add_block(m, BLOCK_THINK, LS(S_DEMO_A_QE_THINK));
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_A_QE));
+    msg_add_block(m, BLOCK_IMAGE, "demo://entanglement.png");
+
+    /* session 3: one long assistant answer (scroll + wrapping) */
+    long_text = demo_long_text();
+    m = session_add_msg(s_demo[2], ROLE_USER);
+    msg_add_block(m, BLOCK_TEXT, LS(S_DEMO_U_TCP));
+    m = session_add_msg(s_demo[2], ROLE_ASSIST);
+    msg_add_block(m, BLOCK_TEXT, long_text != NULL ? long_text
+                                                   : LS(S_DEMO_A_TCP_BODY));
+    free(long_text);
+}
 
 static void demo_tabs_init(void)
 {
@@ -61,6 +123,7 @@ static void demo_tabs_init(void)
         sprintf(s_demo[i]->title, "%s %d", LS(S_TAB_DEMO), i + 1);
         list[i] = s_demo[i];
     }
+    demo_fill_sessions();
     tabbar_set_sessions(list, DEMO_TABS_N);
 }
 
@@ -101,6 +164,19 @@ static void layout_tabbar(HWND hwnd)
         return;
     GetClientRect(hwnd, &rc);
     MoveWindow(s_tabbar, 0, 0, rc.right, TABBAR_HEIGHT, TRUE);
+}
+
+/* the chat view takes the client area between the tab strip and the
+ * status strip */
+static void layout_chat(HWND hwnd)
+{
+    RECT rc;
+
+    if (s_chat == NULL)
+        return;
+    GetClientRect(hwnd, &rc);
+    MoveWindow(s_chat, 0, TABBAR_HEIGHT, rc.right,
+               rc.bottom - TABBAR_HEIGHT - STATUS_STRIP_H, TRUE);
 }
 
 /* ------------------------------------------------------------------ */
@@ -179,13 +255,13 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
 
     switch (msg) {
     case WM_APP_TAB_CHANGED:
-        /* log to the status strip; real switching lands in Task 17/20 */
         if (lp >= 0 && lp < DEMO_TABS_N
 #if DEMO_TABS
             && s_demo[lp] != NULL
 #endif
             ) {
 #if DEMO_TABS
+            chatview_set_session(s_demo[lp]);
             status_set_text(s_demo[lp]->title);
 #else
             status_set_text("tab changed");
@@ -215,6 +291,7 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
 
     case WM_SIZE:
         layout_tabbar(hwnd);
+        layout_chat(hwnd);
         return 0;
 
     case WM_COMMAND:
@@ -296,9 +373,13 @@ HWND ui_mainwin_init(HINSTANCE inst, int ncmdshow, Config *cfg)
     UpdateWindow(hwnd);
 
     s_tabbar = tabbar_create(hwnd);
+    s_chat = chatview_create(hwnd);
     layout_tabbar(hwnd);
+    layout_chat(hwnd);
 #if DEMO_TABS
     demo_tabs_init();
+    if (s_demo[0] != NULL)
+        chatview_set_session(s_demo[0]);
 #endif
     return hwnd;
 }

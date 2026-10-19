@@ -26,6 +26,7 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
     config_defaults( &cfg );
     config_load( &cfg, "config.toml", err, sizeof err );
     /* a missing config.toml is fine - defaults stay in place */
+    g_cfg = cfg;   /* process-wide copy for the UI layer (see config.h) */
 
     ui_lang_init();
 
