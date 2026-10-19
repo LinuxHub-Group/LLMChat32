@@ -10,11 +10,16 @@
  * locally implemented base64 encoder. The target host is never
  * resolved locally in the proxy path - the proxy resolves it.
  *
+ * Timeouts are always caller parameters (timeout_ms); this file keeps
+ * no defaults of its own. Callers wanting the standard limits pass
+ * NET_TIMEOUT_CONNECT_MS / NET_TIMEOUT_RW_MS from net.h.
+ *
  * All functions are C89. Strings are narrow UTF-8.
  */
 #include <stdio.h>      /* sprintf, sscanf */
 #include <stdlib.h>     /* malloc, free */
 #include <string.h>
+#include <stdarg.h>     /* va_list for set_errf */
 
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
@@ -28,6 +33,19 @@ static void set_err(char *err, int errcap, const char *msg)
     if (err && errcap > 0) {
         strncpy(err, msg, (size_t)errcap - 1);
         err[errcap - 1] = '\0';
+    }
+}
+
+/* printf-style variant of set_err: formats into err honoring errcap,
+ * so messages with embedded host names can never overrun the buffer */
+static void set_errf(char *err, int errcap, const char *fmt, ...)
+{
+    if (err && errcap > 0) {
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(err, (size_t)errcap, fmt, ap);
+        err[errcap - 1] = '\0';
+        va_end(ap);
     }
 }
 
@@ -219,7 +237,7 @@ static int proxy_read_response(NetConn *c, int timeout_ms,
         return -1;
     }
     if (code < 200 || code > 299) {
-        sprintf(err, "proxy CONNECT refused (status %d)", code);
+        set_errf(err, errcap, "proxy CONNECT refused (status %d)", code);
         return -1;
     }
     return 0;
@@ -255,8 +273,8 @@ int net_connect(NetConn **out, const char *host, unsigned short port,
         cport = (unsigned short)proxy->port;
     }
     if (resolve_name(chost, cport, &sa) != 0) {
-        sprintf(err, "cannot resolve '%.*s' (wsa %d)", 100, chost,
-                WSAGetLastError());
+        set_errf(err, errcap, "cannot resolve '%.*s' (wsa %d)", 100, chost,
+                 WSAGetLastError());
         return -1;
     }
     s = socket(AF_INET, SOCK_STREAM, 0);
@@ -265,8 +283,8 @@ int net_connect(NetConn **out, const char *host, unsigned short port,
         return -1;
     }
     if (connect_timeboxed(s, &sa, timeout_ms) != 0) {
-        sprintf(err, "connect to '%.*s:%u' failed (wsa %d)", 100, chost,
-                (unsigned)cport, WSAGetLastError());
+        set_errf(err, errcap, "connect to '%.*s:%u' failed (wsa %d)", 100,
+                 chost, (unsigned)cport, WSAGetLastError());
         closesocket(s);
         return -1;
     }

@@ -7,6 +7,9 @@
  *
  * Timeouts: timeout_ms >= 0 waits up to that many milliseconds
  * (0 = poll, return immediately); timeout_ms < 0 blocks forever.
+ * The standard limits are NET_TIMEOUT_CONNECT_MS (net_connect) and
+ * NET_TIMEOUT_RW_MS (net_send/net_recv) below; pass them explicitly
+ * unless a scenario needs something shorter.
  *
  *   net_connect  - on success returns 0 and stores a new NetConn in *out
  *                  (caller frees with net_close). On failure returns
@@ -43,6 +46,13 @@ extern "C" {
 #endif
 
 typedef struct NetConn NetConn;
+
+/* Standard timeout limits, in milliseconds, for callers of this layer:
+ * net_connect uses NET_TIMEOUT_CONNECT_MS; net_send and net_recv use
+ * NET_TIMEOUT_RW_MS. They are conveniences for callers only - every
+ * function still takes an explicit timeout_ms (see the semantics above). */
+#define NET_TIMEOUT_CONNECT_MS 10000
+#define NET_TIMEOUT_RW_MS      30000
 
 int net_connect(NetConn **out, const char *host, unsigned short port,
                 int timeout_ms, const ProxyCfg *proxy, int use_proxy,
