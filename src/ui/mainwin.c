@@ -38,6 +38,7 @@
 #include "../core/utf.h"
 #include "chatview.h"
 #include "commands.h"
+#include "dlg_config.h"
 #include "dlg_view.h"
 #include "inputbar.h"
 #include "strings.h"
@@ -565,7 +566,15 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
             /* later: clear conversation view */
             break;
         case IDM_MODEL_CFG:
-            /* later: model settings dialog */
+            /* the dialog mutates g_cfg; a running worker reads the
+               App's private snapshot of it, so refuse mid-send */
+            if (!app_busy(s_app) && dlg_config_run(hwnd, &g_cfg) == 1) {
+                inputbar_set_models(&g_cfg);
+                if (s_app != NULL)
+                    app_update_config(s_app, &g_cfg);
+                status_set_text(LS(S_CONFIG_SAVED));
+                status_invalidate(hwnd);
+            }
             break;
         case IDM_ABOUT:
             ui_msg_a(hwnd, LS(S_ABOUT_TEXT), LS(S_MENU_HELP), MB_OK | MB_ICONINFORMATION);

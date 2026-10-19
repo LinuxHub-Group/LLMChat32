@@ -35,6 +35,18 @@ typedef enum {
     S_IMG_FILTER,        /* GetSaveFileNameA filter description */
     S_ALL_FILES,         /* GetSaveFileNameA "all files" entry */
     S_DECODE_FAILED,     /* fetch ok but the bytes are not an image */
+    S_CFG_TITLE,         /* Task 19 model config dialog */
+    S_CFG_ADD, S_CFG_DEL, S_CFG_UP, S_CFG_DOWN,
+    S_CFG_NAME, S_CFG_API, S_CFG_BASEURL, S_CFG_APIKEY, S_CFG_MODELID,
+    S_CFG_USEPROXY, S_CFG_STREAM, S_CFG_REASONING, S_CFG_VERIFYTLS,
+    S_CFG_EFFORT, S_CFG_BUDGET, S_CFG_MAXTOKENS, S_CFG_MAXCTX, S_CFG_TEMP,
+    S_CFG_NEWMODEL,      /* default name for an added model */
+    S_CFG_OK, S_CFG_CANCEL,
+    S_API_ANTHROPIC, S_API_CHAT, S_API_RESPONSES,  /* api dropdown display */
+    S_EFF_LOW, S_EFF_MEDIUM, S_EFF_HIGH,           /* effort dropdown display */
+    S_CFG_ERR_NAME, S_CFG_ERR_API, S_CFG_ERR_NUM, S_CFG_ERR_MAXTOK,
+    S_CFG_ERR_FULL,
+    S_CONFIG_SAVED,      /* status-strip note after a successful save */
     S__COUNT
 } StrID;
 
@@ -77,7 +89,41 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_SAVE_AS */          "另存为(&S)...",
     /* S_IMG_FILTER */       "图片文件 (*.png;*.jpg;*.jpeg;*.bmp;*.gif)",
     /* S_ALL_FILES */        "所有文件 (*.*)",
-    /* S_DECODE_FAILED */    "无法解码图片"
+    /* S_DECODE_FAILED */    "无法解码图片",
+    /* S_CFG_TITLE */        "模型设置",
+    /* S_CFG_ADD */          "添加(&A)",
+    /* S_CFG_DEL */          "删除(&D)",
+    /* S_CFG_UP */           "上移(&U)",
+    /* S_CFG_DOWN */         "下移(&O)",
+    /* S_CFG_NAME */         "名称(&N):",
+    /* S_CFG_API */          "API(&P):",
+    /* S_CFG_BASEURL */      "Base URL(&B):",
+    /* S_CFG_APIKEY */       "API Key(&K):",
+    /* S_CFG_MODELID */      "模型 ID(&I):",
+    /* S_CFG_USEPROXY */     "使用代理(&Y)",
+    /* S_CFG_STREAM */       "流式输出(&S)",
+    /* S_CFG_REASONING */    "推理(&R)",
+    /* S_CFG_VERIFYTLS */    "验证 TLS 证书(&V)",
+    /* S_CFG_EFFORT */       "推理强度(&E):",
+    /* S_CFG_BUDGET */       "思考预算(&T):",
+    /* S_CFG_MAXTOKENS */    "最大 tokens(&M):",
+    /* S_CFG_MAXCTX */       "上下文上限(&C):",
+    /* S_CFG_TEMP */         "温度(&D):",
+    /* S_CFG_NEWMODEL */     "新模型",
+    /* S_CFG_OK */           "确定",
+    /* S_CFG_CANCEL */       "取消",
+    /* S_API_ANTHROPIC */    "Anthropic",
+    /* S_API_CHAT */         "Chat 补全",
+    /* S_API_RESPONSES */    "Responses",
+    /* S_EFF_LOW */          "低",
+    /* S_EFF_MEDIUM */       "中",
+    /* S_EFF_HIGH */         "高",
+    /* S_CFG_ERR_NAME */     "名称不能为空。",
+    /* S_CFG_ERR_API */      "存在未选择 API 类型的模型。",
+    /* S_CFG_ERR_NUM */      "数字字段包含无效值。",
+    /* S_CFG_ERR_MAXTOK */   "max_tokens 必须大于 0。",
+    /* S_CFG_ERR_FULL */     "模型数量已达上限(32)。",
+    /* S_CONFIG_SAVED */     "配置已保存"
 };
 
 const char *const g_strs_en[S__COUNT] = {
@@ -111,7 +157,41 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_SAVE_AS */          "Save &As...",
     /* S_IMG_FILTER */       "Image files (*.png;*.jpg;*.jpeg;*.bmp;*.gif)",
     /* S_ALL_FILES */        "All Files (*.*)",
-    /* S_DECODE_FAILED */    "Cannot decode image"
+    /* S_DECODE_FAILED */    "Cannot decode image",
+    /* S_CFG_TITLE */        "Model settings",
+    /* S_CFG_ADD */          "&Add",
+    /* S_CFG_DEL */          "&Delete",
+    /* S_CFG_UP */           "Move &Up",
+    /* S_CFG_DOWN */         "Move D&own",
+    /* S_CFG_NAME */         "&Name:",
+    /* S_CFG_API */          "A&PI:",
+    /* S_CFG_BASEURL */      "&Base URL:",
+    /* S_CFG_APIKEY */       "API &Key:",
+    /* S_CFG_MODELID */      "&Model ID:",
+    /* S_CFG_USEPROXY */     "Use pro&xy",
+    /* S_CFG_STREAM */       "&Stream",
+    /* S_CFG_REASONING */    "&Reasoning",
+    /* S_CFG_VERIFYTLS */    "&Verify TLS certificate",
+    /* S_CFG_EFFORT */       "Reasoning &effort:",
+    /* S_CFG_BUDGET */       "Thinking &budget:",
+    /* S_CFG_MAXTOKENS */    "Ma&x tokens:",
+    /* S_CFG_MAXCTX */       "Ma&x context chars:",
+    /* S_CFG_TEMP */         "Tempe&rature:",
+    /* S_CFG_NEWMODEL */     "New model",
+    /* S_CFG_OK */           "OK",
+    /* S_CFG_CANCEL */       "Cancel",
+    /* S_API_ANTHROPIC */    "Anthropic",
+    /* S_API_CHAT */         "Chat Completions",
+    /* S_API_RESPONSES */    "Responses",
+    /* S_EFF_LOW */          "Low",
+    /* S_EFF_MEDIUM */       "Medium",
+    /* S_EFF_HIGH */         "High",
+    /* S_CFG_ERR_NAME */     "Name must not be empty.",
+    /* S_CFG_ERR_API */      "A model has no API type selected.",
+    /* S_CFG_ERR_NUM */      "A number field has an invalid value.",
+    /* S_CFG_ERR_MAXTOK */   "max_tokens must be greater than 0.",
+    /* S_CFG_ERR_FULL */     "Model list is full (32).",
+    /* S_CONFIG_SAVED */     "Configuration saved"
 };
 
 #else

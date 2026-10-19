@@ -50,11 +50,21 @@ void app_set_events(App*, const AppEvents*, void *ctx);
 
 /*
  * Select the model the worker thread sends with: an index into the
- * Config.m[] snapshot taken at app_new(). -1 or an out-of-range index is
- * rejected (the previous selection stays). The default selection is 0.
- * Call on the UI thread before app_send(). Returns 0 on success.
+ * App's private Config.m[] snapshot (app_new / app_update_config).
+ * -1 or an out-of-range index is rejected (the previous selection
+ * stays). The default selection is 0. Call on the UI thread before
+ * app_send(). Returns 0 on success.
  */
 int  app_set_model(App*, int model_idx);
+
+/*
+ * Replace the Config snapshot with a fresh copy (Task 19: the model
+ * settings dialog rewrites g_cfg after a successful save). The model
+ * selection is clamped back into range when the model list shrank.
+ * Call on the UI thread while no send is in flight (the worker reads
+ * a->cfg).
+ */
+void app_update_config(App*, const Config*);
 
 /*
  * Drain the worker->UI event queue. Call on the UI thread (timer or

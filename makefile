@@ -16,7 +16,7 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\dlg_view.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\dlg_view.obj build\dlg_config.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj
 APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
@@ -33,7 +33,7 @@ build\ui.obj: src\ui\ui.c src\ui\ui.h src\ui\strings.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\ui.obj src\ui\ui.c
 
-build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\ui\inputbar.h src\ui\dlg_view.h src\core\config.h src\core\session.h src\core\app.h src\core\history.h src\core\utf.h
+build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\ui\inputbar.h src\ui\dlg_view.h src\ui\dlg_config.h src\core\config.h src\core\session.h src\core\app.h src\core\history.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\mainwin.obj src\ui\mainwin.c
 
@@ -55,6 +55,13 @@ build\chatview.obj: src\ui\chatview.c src\ui\chatview.h src\ui\draw.h src\ui\ui.
 build\dlg_view.obj: src\ui\dlg_view.c src\ui\dlg_view.h src\core\image.h src\core\config.h src\core\utf.h src\ui\strings.h src\ui\ui.h src\ui\draw.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\dlg_view.obj src\ui\dlg_view.c
+
+# Task 19 model configuration dialog. dlg_config.c edits the model list
+# on a local Config copy and rewrites config.toml on OK; it pulls the
+# same ui/draw/utf headers as dlg_view plus core/config.h.
+build\dlg_config.obj: src\ui\dlg_config.c src\ui\dlg_config.h src\core\config.h src\core\utf.h src\ui\strings.h src\ui\ui.h src\ui\draw.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\dlg_config.obj src\ui\dlg_config.c
 
 build\draw.obj: src\ui\draw.c src\ui\draw.h src\core\config.h src\core\utf.h
 	@if not exist build mkdir build
@@ -225,6 +232,7 @@ clean: .SYMBOLIC
 	@if exist build\llm.obj del build\llm.obj
 	@if exist build\inputbar.obj del build\inputbar.obj
 	@if exist build\dlg_view.obj del build\dlg_view.obj
+	@if exist build\dlg_config.obj del build\dlg_config.obj
 	@if exist build\app.res del build\app.res
 	@if exist build\wolfssl.lib del build\wolfssl.lib
 	@if exist tests\test_tls_smoke.exe del tests\test_tls_smoke.exe

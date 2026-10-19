@@ -407,6 +407,15 @@ int app_set_model(App *a, int model_idx)
     return 0;
 }
 
+void app_update_config(App *a, const Config *cfg)
+{
+    if (a == NULL || cfg == NULL)
+        return;
+    a->cfg = *cfg;
+    if (a->model_idx >= a->cfg.n_models)
+        a->model_idx = 0;
+}
+
 void app_test_q_push_fail_at(App *a, long n)
 {
     if (a != NULL) {
