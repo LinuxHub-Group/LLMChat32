@@ -1,31 +1,107 @@
 /*
- * mainwin.c - main window skeleton: class, menu, status strip, command
- * dispatch shell.
+ * mainwin.c - main window skeleton: class, menu, tab strip, status strip,
+ * command dispatch shell.
  *
- * The client area is empty for now (chat view lands in a later task).
- * The menu is assembled programmatically from LS() strings - there is no
- * .rc menu. The status bar is a self-drawn strip at the bottom of the
- * client area (FillRect + ui_drawtext_w), not a comctl32 control.
+ * The client area hosts the tab strip ("LlmTabBar" child, see tabbar.h)
+ * in its top ~28px; the chat view lands in the remaining space in a later
+ * task. The menu is assembled programmatically from LS() strings - there
+ * is no .rc menu. The status bar is a self-drawn strip at the bottom of
+ * the client area (FillRect + ui_drawtext_w), not a comctl32 control.
+ *
+ * DEMO_TABS: with no session-loading layer yet (Tasks 17/20), a first
+ * run gets 3 fake sessions so the tab strip is visible and clickable.
  */
 #include "mainwin.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <windows.h>
 
 #include "../core/config.h"
+#include "../core/session.h"
 #include "commands.h"
 #include "strings.h"
+#include "tabbar.h"
 #include "ui.h"
 
 #define MAIN_CLASS      "LLMChat32Main"
 #define STATUS_STRIP_H  22
 #define STATUS_PAD_X    6
 
+/* Demo tabs until real session loading lands (Tasks 17/20). Set to 0 to
+ * disable; the fake sessions and this define are removed together. */
+#define DEMO_TABS 1
+#define DEMO_TABS_N 3
+
 HWND g_hwnd_main = NULL;
 
 /* status strip content; later tasks switch this between
- * S_STATUS_READY / S_STATUS_SENDING / S_STATUS_ABORTED */
+ * S_STATUS_READY / S_STATUS_SENDING / S_STATUS_ABORTED. When
+ * s_status_text is non-empty it overrides the LS() string. */
 static StrID s_status = S_STATUS_READY;
+static char s_status_text[128];   /* UTF-8 override */
+
+static HWND s_tabbar = NULL;
+
+#if DEMO_TABS
+static Session *s_demo[DEMO_TABS_N];
+
+static void demo_tabs_init(void)
+{
+    Session *list[DEMO_TABS_N];
+    int i;
+
+    for (i = 0; i < DEMO_TABS_N; i++) {
+        char id[24];
+
+        sprintf(id, "demo-%d", i);
+        s_demo[i] = session_new(id);
+        if (s_demo[i] == NULL)
+            return;
+        sprintf(s_demo[i]->title, "%s %d", LS(S_TAB_DEMO), i + 1);
+        list[i] = s_demo[i];
+    }
+    tabbar_set_sessions(list, DEMO_TABS_N);
+}
+
+static void demo_tabs_free(void)
+{
+    int i;
+
+    for (i = 0; i < DEMO_TABS_N; i++) {
+        if (s_demo[i] != NULL) {
+            session_free(s_demo[i]);
+            s_demo[i] = NULL;
+        }
+    }
+}
+#endif /* DEMO_TABS */
+
+static void status_set_text(const char *utf8)
+{
+    strncpy(s_status_text, utf8, sizeof s_status_text - 1);
+    s_status_text[sizeof s_status_text - 1] = '\0';
+}
+
+/* redraw just the status strip */
+static void status_invalidate(HWND hwnd)
+{
+    RECT rc;
+
+    GetClientRect(hwnd, &rc);
+    rc.top = rc.bottom - STATUS_STRIP_H;
+    InvalidateRect(hwnd, &rc, FALSE);
+}
+
+static void layout_tabbar(HWND hwnd)
+{
+    RECT rc;
+
+    if (s_tabbar == NULL)
+        return;
+    GetClientRect(hwnd, &rc);
+    MoveWindow(s_tabbar, 0, 0, rc.right, TABBAR_HEIGHT, TRUE);
+}
 
 /* ------------------------------------------------------------------ */
 /* menu                                                                */
@@ -87,7 +163,8 @@ static void paint_status_strip(HDC hdc, const RECT *client)
     rc.right -= STATUS_PAD_X;
     prev = SetTextColor(hdc, GetSysColor(COLOR_BTNTEXT));
     SetBkMode(hdc, TRANSPARENT);
-    ui_drawtext_w(hdc, LS(s_status), &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    ui_drawtext_w(hdc, s_status_text[0] ? s_status_text : LS(s_status),
+                  &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SetTextColor(hdc, prev);
 }
 
@@ -101,6 +178,45 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
     RECT rc;
 
     switch (msg) {
+    case WM_APP_TAB_CHANGED:
+        /* log to the status strip; real switching lands in Task 17/20 */
+        if (lp >= 0 && lp < DEMO_TABS_N
+#if DEMO_TABS
+            && s_demo[lp] != NULL
+#endif
+            ) {
+#if DEMO_TABS
+            status_set_text(s_demo[lp]->title);
+#else
+            status_set_text("tab changed");
+#endif
+        } else {
+            status_set_text("tab: ?");
+        }
+        status_invalidate(hwnd);
+        return 0;
+
+    case WM_APP_TAB_CLOSE:
+        /* real close/delete lands in Task 17/20 */
+        {
+            char buf[32];
+
+            sprintf(buf, "close: %d", (int)lp);
+            status_set_text(buf);
+        }
+        status_invalidate(hwnd);
+        return 0;
+
+    case WM_APP_TAB_NEW:
+        /* real new-session lands in Task 17/20 */
+        status_set_text(LS(S_MENU_NEW_CHAT));
+        status_invalidate(hwnd);
+        return 0;
+
+    case WM_SIZE:
+        layout_tabbar(hwnd);
+        return 0;
+
     case WM_COMMAND:
         switch (LOWORD(wp)) {
         case IDM_NEW_CHAT:
@@ -137,6 +253,9 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         return 0;
 
     case WM_DESTROY:
+#if DEMO_TABS
+        demo_tabs_free();
+#endif
         PostQuitMessage(0);
         return 0;
     }
@@ -175,5 +294,11 @@ HWND ui_mainwin_init(HINSTANCE inst, int ncmdshow, Config *cfg)
     g_hwnd_main = hwnd;
     ShowWindow(hwnd, ncmdshow);
     UpdateWindow(hwnd);
+
+    s_tabbar = tabbar_create(hwnd);
+    layout_tabbar(hwnd);
+#if DEMO_TABS
+    demo_tabs_init();
+#endif
     return hwnd;
 }

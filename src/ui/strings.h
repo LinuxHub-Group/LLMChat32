@@ -29,6 +29,7 @@ typedef enum {
     S_STATUS_READY, S_STATUS_SENDING, S_STATUS_ABORTED,
     S_BTN_SEND, S_BTN_ABORT, S_THINK_LINK, S_IMAGE_LINK,
     S_CONFIRM_DEL_SESSION, S_SAVE_FAILED, S_ABOUT_TEXT,
+    S_TAB_DEMO,          /* temp demo tab title prefix (Task 14; removed by 17/20) */
     S__COUNT
 } StrID;
 
@@ -61,7 +62,8 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_IMAGE_LINK */       "[图片]",
     /* S_CONFIRM_DEL_SESSION */ "确定要删除该会话吗？",
     /* S_SAVE_FAILED */      "保存失败：",
-    /* S_ABOUT_TEXT */       "LLMChat32 —— Windows 98 兼容的 LLM 聊天客户端。\nUTF-8 内核，极简依赖。"
+    /* S_ABOUT_TEXT */       "LLMChat32 —— Windows 98 兼容的 LLM 聊天客户端。\nUTF-8 内核，极简依赖。",
+    /* S_TAB_DEMO */         "演示会话"
 };
 
 const char *const g_strs_en[S__COUNT] = {
@@ -85,7 +87,8 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_IMAGE_LINK */       "[image]",
     /* S_CONFIRM_DEL_SESSION */ "Delete this session?",
     /* S_SAVE_FAILED */      "Save failed: ",
-    /* S_ABOUT_TEXT */       "LLMChat32 - a Windows 98 compatible LLM chat client.\nUTF-8 core, minimal dependencies."
+    /* S_ABOUT_TEXT */       "LLMChat32 - a Windows 98 compatible LLM chat client.\nUTF-8 core, minimal dependencies.",
+    /* S_TAB_DEMO */         "Demo chat"
 };
 
 #else
