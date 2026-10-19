@@ -6,7 +6,7 @@ rem ---------------------------------------------------------------------------
 rem LLMChat32 build script (Open Watcom 2.0, Windows 98 compatible target)
 rem
 rem   build.bat        build build\llmchat32.exe
-rem   build.bat test   build, then run tests (none yet)
+rem   build.bat test   build, then build+run tests (tests\*.exe)
 rem
 rem Environment: WATCOM defaults to ow_portable_v2_stable next to this script.
 rem ---------------------------------------------------------------------------
@@ -23,6 +23,19 @@ set "LIB=%WATCOM%\lib386;%WATCOM%\lib386\nt"
 set "PATH=%WATCOM%\binnt;%PATH%"
 
 if not exist build mkdir build
+
+rem --- wolfSSL sources: only third_party\wolfssl\ow\ is committed; the   ---
+rem --- upstream tree is fetched on demand. Needs network; when offline, ---
+rem --- fetch manually (see third_party\fetch-wolfssl.bat header).        ---
+if not exist third_party\wolfssl\src\ssl.c (
+    echo [build] wolfSSL sources missing - fetching...
+    call third_party\fetch-wolfssl.bat
+    if errorlevel 1 (
+        echo [build] ERROR: could not obtain wolfSSL sources - network offline?
+        echo [build] restore network or populate third_party\wolfssl manually.
+        exit /b 1
+    )
+)
 
 rem --- UTF-8 BOM scan (batch findstr cannot match BOM bytes, so compile ---
 rem --- the tiny C scanner src\tools\bomscan.c and run it over src\)      ---

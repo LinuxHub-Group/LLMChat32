@@ -13,3 +13,7 @@ build/
 history/
 config.toml
 *.log
+
+# wolfSSL 上游源码不入库：只跟踪 ow/（Open Watcom 移植文件）
+third_party/wolfssl/*
+!third_party/wolfssl/ow/
