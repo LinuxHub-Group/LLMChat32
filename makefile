@@ -36,7 +36,7 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe tests\test_llm_stream.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
@@ -78,9 +78,19 @@ tests\test_tls.exe: src\tests\test_tls.c src\core\tls.h src\core\tls.c src\core\
 	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls.exe src\tests\test_tls.c src\core\tls.c src\core\net.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 # llm 请求构造层: 三协议 JSON 组装 + 上下文截断 (纯函数, 无网络).
-tests\test_llm_req.exe: src\tests\test_llm_req.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\utf.h src\core\utf.c
+# llm.c 现引用 net/tls/http 符号 (llm_send 全管线), 故链接全栈 + wolfssl
+# (与 test_llm_stream 一致); 源文件自身不触网。
+tests\test_llm_req.exe: src\tests\test_llm_req.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_llm_req.exe src\tests\test_llm_req.c src\core\llm.c src\core\json.c src\core\session.c src\core\utf.c
+	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_llm_req.exe src\tests\test_llm_req.c src\core\llm.c src\core\json.c src\core\session.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+
+# llm 解析/发送层: SSE 行解析 + 事件分发 + 非流式解析 + 错误提取 + llm_send
+# 全管线。解析层经 llm_feed_sse/llm_parse_nonstream/llm_extract_error 直接
+# 喂字节测试 (不经网络); 全链路链接 net/tls/http/json/config/session/utf +
+# wolfssl + ws2_32/advapi32 (与 test_tls_smoke 一致)。
+tests\test_llm_stream.exe: src\tests\test_llm_stream.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_llm_stream.exe src\tests\test_llm_stream.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
@@ -97,4 +107,5 @@ clean: .SYMBOLIC
 	@if exist tests\test_http.exe del tests\test_http.exe
 	@if exist tests\test_tls.exe del tests\test_tls.exe
 	@if exist tests\test_llm_req.exe del tests\test_llm_req.exe
+	@if exist tests\test_llm_stream.exe del tests\test_llm_stream.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)
