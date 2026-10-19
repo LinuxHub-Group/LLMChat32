@@ -36,7 +36,7 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe tests\test_llm_req.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
@@ -77,6 +77,11 @@ tests\test_tls.exe: src\tests\test_tls.c src\core\tls.h src\core\tls.c src\core\
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls.exe src\tests\test_tls.c src\core\tls.c src\core\net.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
+# llm 请求构造层: 三协议 JSON 组装 + 上下文截断 (纯函数, 无网络).
+tests\test_llm_req.exe: src\tests\test_llm_req.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\utf.h src\core\utf.c
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc -fe=tests\test_llm_req.exe src\tests\test_llm_req.c src\core\llm.c src\core\json.c src\core\session.c src\core\utf.c
+
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
 	@if exist build\bomscan.obj del build\bomscan.obj
@@ -91,4 +96,5 @@ clean: .SYMBOLIC
 	@if exist tests\test_net.exe del tests\test_net.exe
 	@if exist tests\test_http.exe del tests\test_http.exe
 	@if exist tests\test_tls.exe del tests\test_tls.exe
+	@if exist tests\test_llm_req.exe del tests\test_llm_req.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)
