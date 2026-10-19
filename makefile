@@ -36,11 +36,11 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe tests\test_net.exe tests\test_http.exe tests\test_tls.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
-tests\test_tls_smoke.exe: src\tests\test_tls_smoke.c src\tests\certs_google.h $(WOLFSSL_LIB)
+tests\test_tls_smoke.exe: src\tests\test_tls_smoke.c src\tests\certs_google.h src\core\certs_roots.h $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls_smoke.exe src\tests\test_tls_smoke.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
@@ -70,6 +70,13 @@ tests\test_http.exe: src\tests\test_http.c src\core\http.h src\core\http.c src\c
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc -fe=tests\test_http.exe src\tests\test_http.c src\core\http.c src\core\net.c ws2_32.lib
 
+# tls 层: wolfSSL 封装于 net.c 之上。tls.c 与 wolfssl.lib 必须用相同的
+# feature defines 编译（见 WOLFSSL_OPTS 注释），并链接 ws2_32/advapi32
+# （与 test_tls_smoke 一致）。
+tests\test_tls.exe: src\tests\test_tls.c src\core\tls.h src\core\tls.c src\core\net.h src\core\net.c src\core\certs_roots.h src\core\config.h $(WOLFSSL_LIB)
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls.exe src\tests\test_tls.c src\core\tls.c src\core\net.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
 	@if exist build\bomscan.obj del build\bomscan.obj
@@ -83,4 +90,5 @@ clean: .SYMBOLIC
 	@if exist tests\test_history.exe del tests\test_history.exe
 	@if exist tests\test_net.exe del tests\test_net.exe
 	@if exist tests\test_http.exe del tests\test_http.exe
+	@if exist tests\test_tls.exe del tests\test_tls.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)

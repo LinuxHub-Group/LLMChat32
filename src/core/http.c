@@ -1,6 +1,12 @@
 /*
  * http.c - HTTP/1.1 client layer (see http.h for the contract).
  *
+ * The transport is an opaque void* driven through IoSend/IoRecv
+ * function pointers (net_send/net_recv semantics, NET_TIMEOUT_RW_MS
+ * timeouts). The NetConn-taking http_send_request/http_read_body are
+ * thin wrappers at the bottom of this file; TLS reuses the same code
+ * via http_send_request2/http_read_body2 over a TlsConn.
+ *
  * Request serialization is a single bounded buffer (request heads are
  * small; the body is sent separately). The response head is read byte
  * at a time until CRLFCRLF (or a bare LFLF) so that body bytes arriving
@@ -141,13 +147,14 @@ static int req_appendf(char *buf, int cap, int *n, const char *fmt, ...)
  * the head terminator belongs to the body and must stay in the socket
  * buffer for http_read_body.
  */
-static int read_head(NetConn *c, char *head, int cap, char *err, int errcap)
+static int read_head(void *io, IoRecv recv_fn, char *head, int cap,
+                     char *err, int errcap)
 {
     int n = 0;
 
     for (;;) {
         char b;
-        int r = net_recv(c, &b, 1, NET_TIMEOUT_RW_MS);
+        int r = recv_fn(io, &b, 1, NET_TIMEOUT_RW_MS);
         if (r <= 0) {
             set_err(err, errcap,
                     "connection closed or timed out during response headers");
@@ -315,13 +322,14 @@ static int parse_head(const char *head, HttpResult *out,
  * used for chunk-size lines, per-chunk CRLF, and trailers, all of which
  * are short. An overlong line is a protocol error rather than a
  * truncated parse, which could desync the chunked decoder. */
-static int rdline(NetConn *c, char *line, int cap, char *err, int errcap)
+static int rdline(void *io, IoRecv recv_fn, char *line, int cap,
+                  char *err, int errcap)
 {
     int n = 0;
 
     for (;;) {
         char b;
-        int r = net_recv(c, &b, 1, NET_TIMEOUT_RW_MS);
+        int r = recv_fn(io, &b, 1, NET_TIMEOUT_RW_MS);
         if (r <= 0) {
             set_err(err, errcap,
                     "connection closed or timed out mid-chunk");
@@ -378,7 +386,8 @@ static long parse_chunk_size(const char *line, char *err, int errcap)
     return (long)v;
 }
 
-static int read_sized(NetConn *c, long total, const volatile int *cancel,
+static int read_sized(void *io, IoRecv recv_fn, long total,
+                      const volatile int *cancel,
                       HttpBodyFn fn, void *ctx, char *err, int errcap)
 {
     char buf[HTTP_IO_CAP];
@@ -392,7 +401,7 @@ static int read_sized(NetConn *c, long total, const volatile int *cancel,
 
         if (cancel && *cancel)
             return -2;
-        r = net_recv(c, buf, want, NET_TIMEOUT_RW_MS);
+        r = recv_fn(io, buf, want, NET_TIMEOUT_RW_MS);
         if (r <= 0) {
             set_err(err, errcap,
                     "connection closed or timed out during body");
@@ -407,7 +416,8 @@ static int read_sized(NetConn *c, long total, const volatile int *cancel,
     return 0;
 }
 
-static int read_till_close(NetConn *c, const volatile int *cancel,
+static int read_till_close(void *io, IoRecv recv_fn,
+                           const volatile int *cancel,
                            HttpBodyFn fn, void *ctx, char *err, int errcap)
 {
     char buf[HTTP_IO_CAP];
@@ -417,7 +427,7 @@ static int read_till_close(NetConn *c, const volatile int *cancel,
 
         if (cancel && *cancel)
             return -2;
-        r = net_recv(c, buf, (int)sizeof(buf), NET_TIMEOUT_RW_MS);
+        r = recv_fn(io, buf, (int)sizeof(buf), NET_TIMEOUT_RW_MS);
         if (r < 0) {
             set_err(err, errcap, "error reading body");
             return -1;
@@ -432,7 +442,7 @@ static int read_till_close(NetConn *c, const volatile int *cancel,
     return 0;
 }
 
-static int read_chunked(NetConn *c, const volatile int *cancel,
+static int read_chunked(void *io, IoRecv recv_fn, const volatile int *cancel,
                         HttpBodyFn fn, void *ctx, char *err, int errcap)
 {
     char line[HTTP_LINE_CAP];
@@ -444,7 +454,7 @@ static int read_chunked(NetConn *c, const volatile int *cancel,
 
         if (cancel && *cancel)
             return -2;
-        if (rdline(c, line, (int)sizeof(line), err, errcap) != 0)
+        if (rdline(io, recv_fn, line, (int)sizeof(line), err, errcap) != 0)
             return -1;
         size = parse_chunk_size(line, err, errcap);
         if (size < 0)
@@ -454,7 +464,8 @@ static int read_chunked(NetConn *c, const volatile int *cancel,
             for (;;) {
                 if (cancel && *cancel)
                     return -2;
-                if (rdline(c, line, (int)sizeof(line), err, errcap) != 0)
+                if (rdline(io, recv_fn, line, (int)sizeof(line),
+                           err, errcap) != 0)
                     return -1;
                 if (line[0] == '\0')
                     break;
@@ -471,7 +482,7 @@ static int read_chunked(NetConn *c, const volatile int *cancel,
 
             if (cancel && *cancel)
                 return -2;
-            r = net_recv(c, buf, want, NET_TIMEOUT_RW_MS);
+            r = recv_fn(io, buf, want, NET_TIMEOUT_RW_MS);
             if (r <= 0) {
                 set_err(err, errcap,
                         "connection closed or timed out mid-chunk");
@@ -483,7 +494,7 @@ static int read_chunked(NetConn *c, const volatile int *cancel,
         }
         /* each chunk ends with CRLF (read as an empty line; bare LF
          * tolerated), anything else is a protocol error */
-        if (rdline(c, line, (int)sizeof(line), err, errcap) != 0)
+        if (rdline(io, recv_fn, line, (int)sizeof(line), err, errcap) != 0)
             return -1;
         if (line[0] != '\0') {
             set_err(err, errcap, "malformed chunk terminator");
@@ -494,10 +505,11 @@ static int read_chunked(NetConn *c, const volatile int *cancel,
 
 /* --- public API ------------------------------------------------------------ */
 
-int http_send_request(NetConn *c, const char *method, const char *path,
-                      const char *const *headers,
-                      const char *body, int body_len,
-                      HttpResult *out, char *err, int errcap)
+int http_send_request2(void *io, IoSend send_fn, IoRecv recv_fn,
+                       const char *method, const char *path,
+                       const char *const *headers,
+                       const char *body, int body_len,
+                       HttpResult *out, char *err, int errcap)
 {
     char req[HTTP_REQ_CAP];
     int n = 0;
@@ -511,7 +523,8 @@ int http_send_request(NetConn *c, const char *method, const char *path,
         out->content_length = -1;
         out->content_type[0] = '\0';
     }
-    if (c == NULL || method == NULL || path == NULL || out == NULL
+    if (io == NULL || send_fn == NULL || recv_fn == NULL
+        || method == NULL || path == NULL || out == NULL
         || body_len < 0 || (body == NULL && body_len > 0)) {
         set_err(err, errcap, "bad arguments to http_send_request");
         return -1;
@@ -555,11 +568,12 @@ int http_send_request(NetConn *c, const char *method, const char *path,
         return -1;
     }
 
-    if (net_send(c, req, n, NET_TIMEOUT_RW_MS) != 0) {
+    if (send_fn(io, req, n, NET_TIMEOUT_RW_MS) != 0) {
         set_err(err, errcap, "sending request failed");
         return -1;
     }
-    if (body_len > 0 && net_send(c, body, body_len, NET_TIMEOUT_RW_MS) != 0) {
+    if (body_len > 0
+        && send_fn(io, body, body_len, NET_TIMEOUT_RW_MS) != 0) {
         set_err(err, errcap, "sending request body failed");
         return -1;
     }
@@ -569,7 +583,8 @@ int http_send_request(NetConn *c, const char *method, const char *path,
     for (i = 0; i < 10; i++) {
         char head[HTTP_HEAD_CAP];
 
-        if (read_head(c, head, (int)sizeof(head), err, errcap) != 0)
+        if (read_head(io, recv_fn, head, (int)sizeof(head),
+                      err, errcap) != 0)
             return -1;
         if (parse_head(head, out, err, errcap) != 0)
             return -1;
@@ -581,20 +596,49 @@ int http_send_request(NetConn *c, const char *method, const char *path,
     return -1;
 }
 
-int http_read_body(NetConn *c, const HttpResult *res,
-                   const volatile int *cancel,
-                   HttpBodyFn fn, void *ctx, char *err, int errcap)
+int http_read_body2(void *io, IoRecv recv_fn, const HttpResult *res,
+                    const volatile int *cancel,
+                    HttpBodyFn fn, void *ctx, char *err, int errcap)
 {
     if (err && errcap > 0)
         err[0] = '\0';
-    if (c == NULL || res == NULL) {
+    if (io == NULL || recv_fn == NULL || res == NULL) {
         set_err(err, errcap, "bad arguments to http_read_body");
         return -1;
     }
     if (res->chunked)
-        return read_chunked(c, cancel, fn, ctx, err, errcap);
+        return read_chunked(io, recv_fn, cancel, fn, ctx, err, errcap);
     if (res->content_length >= 0)
-        return read_sized(c, res->content_length, cancel, fn, ctx,
-                          err, errcap);
-    return read_till_close(c, cancel, fn, ctx, err, errcap);
+        return read_sized(io, recv_fn, res->content_length, cancel, fn,
+                          ctx, err, errcap);
+    return read_till_close(io, recv_fn, cancel, fn, ctx, err, errcap);
+}
+
+/* --- NetConn wrappers ------------------------------------------------------ */
+
+static int net_io_send(void *io, const void *data, int len, int timeout_ms)
+{
+    return net_send((NetConn *)io, data, len, timeout_ms);
+}
+
+static int net_io_recv(void *io, void *buf, int cap, int timeout_ms)
+{
+    return net_recv((NetConn *)io, buf, cap, timeout_ms);
+}
+
+int http_send_request(NetConn *c, const char *method, const char *path,
+                      const char *const *headers,
+                      const char *body, int body_len,
+                      HttpResult *out, char *err, int errcap)
+{
+    return http_send_request2(c, net_io_send, net_io_recv,
+                              method, path, headers, body, body_len,
+                              out, err, errcap);
+}
+
+int http_read_body(NetConn *c, const HttpResult *res,
+                   const volatile int *cancel,
+                   HttpBodyFn fn, void *ctx, char *err, int errcap)
+{
+    return http_read_body2(c, net_io_recv, res, cancel, fn, ctx, err, errcap);
 }
