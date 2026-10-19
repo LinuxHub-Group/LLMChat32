@@ -640,6 +640,8 @@ static const char *validate_all(CfgDlg *d)
 
     if (d->err_budget || d->err_maxtok || d->err_maxctx || d->err_temp)
         return LS(S_CFG_ERR_NUM);
+    if (d->cfg.n_models < 1)
+        return LS(S_CFG_ERR_NOMODEL);
     for (i = 0; i < d->cfg.n_models; i++) {
         const ModelCfg *m = &d->cfg.m[i];
 

@@ -466,8 +466,10 @@ int app_send(App *a, Session *s, const char *user_text)
     if (a->ev.on_busy)
         a->ev.on_busy(a->ev_ctx, 1);
 
-    /* _beginthread (NT CLIB) returns the Win32 thread handle, -1 on error */
-    h = _beginthread(worker_main, (unsigned)(64 * 1024), a);
+    /* _beginthread (NT CLIB) returns the Win32 thread handle, -1 on error.
+     * 256KB stack: the TLS handshake (wolfSSL) recurses deeper than the
+     * previously assumed 64KB budget; never verified there. */
+    h = _beginthread(worker_main, (unsigned)(256 * 1024), a);
     if (h == (unsigned long)-1) {
         a->busy = 0;
         a->sess = NULL;

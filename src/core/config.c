@@ -125,6 +125,13 @@ static int on_section(void *ctx, const char *name, int is_array)
             return -1;  /* err set by config_load wrapper below */
         lc->sec = SEC_MODELS;
         memset(&lc->cfg->m[lc->cfg->n_models], 0, sizeof(ModelCfg));
+        /* spec §5 defaults for keys the entry omits (mirrors model_add):
+           verify on, streaming on, temperature sentinel, sane max_tokens;
+           max_context_chars stays 0 (= unlimited) */
+        lc->cfg->m[lc->cfg->n_models].verify_tls = 1;
+        lc->cfg->m[lc->cfg->n_models].stream = 1;
+        lc->cfg->m[lc->cfg->n_models].temperature = -1.0;
+        lc->cfg->m[lc->cfg->n_models].max_tokens = 4096;
         lc->cfg->n_models++;
         return 0;
     }

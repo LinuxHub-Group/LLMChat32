@@ -157,6 +157,12 @@ static int session_autotitle(Session *s, const char *text)
         return 0;
     if (i > (int)sizeof s->title - 1)
         i = (int)sizeof s->title - 1;
+    /* the byte clamp above can split a UTF-8 sequence: step back over
+     * continuation bytes (10xxxxxx) to the last character boundary */
+    while (i > 0 && (((unsigned char)text[i - 1]) & 0xC0) == 0x80)
+        i--;
+    if (i == 0)
+        return 0;   /* all-emoji prefix: leave empty, retried next send */
     memcpy(s->title, text, (size_t)i);
     s->title[i] = '\0';
     return 1;
@@ -633,8 +639,14 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
                App's private snapshot of it, so refuse mid-send */
             if (!app_busy(s_app) && dlg_config_run(hwnd, &g_cfg) == 1) {
                 inputbar_set_models(&g_cfg);
+                /* the combo was reset to item 0: keep the App's model_idx
+                 * in sync (app_set_model is NULL-safe) */
+                app_set_model(s_app, inputbar_selected_model());
                 if (s_app != NULL)
                     app_update_config(s_app, &g_cfg);
+                /* hot-apply background changes: the chatview only picked
+                 * these up at startup otherwise */
+                chatview_set_background(g_cfg.g.bg_image, g_cfg.g.bg_opacity);
                 status_set_text(LS(S_CONFIG_SAVED));
                 status_invalidate(hwnd);
             }

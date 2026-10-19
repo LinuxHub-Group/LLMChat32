@@ -222,6 +222,30 @@ int main(void)
     CHECK(cfg.m[1].verify_tls == 0);
     remove(SAMPLE_PATH);
 
+    /* --- minimal [[models]] entry: spec §5 defaults must fill the rest ---
+       verify_tls on, streaming on, temperature sentinel, max_tokens sane;
+       max_context_chars stays 0 (= unlimited). */
+    {
+        Config mini;
+
+        CHECK(write_file(SAMPLE_PATH,
+            "[[models]]\n"
+            "name = \"Mini\"\n"
+            "api = \"chat\"\n"
+            "base_url = \"https://x\"\n"
+            "api_key = \"k\"\n"
+            "model_id = \"m\"\n") == 0);
+        err[0] = '\0';
+        CHECK(config_load(&mini, SAMPLE_PATH, err, sizeof err) == 0);
+        CHECK(mini.n_models == 1);
+        CHECK(mini.m[0].verify_tls == 1);
+        CHECK(mini.m[0].stream == 1);
+        CHECK(mini.m[0].temperature == -1.0);
+        CHECK(mini.m[0].max_tokens == 4096);
+        CHECK(mini.m[0].max_context_chars == 0);
+        remove(SAMPLE_PATH);
+    }
+
     /* --- CRLF line endings (Notepad/Notepad++ default) parse identically --- */
     {
         char crlf[sizeof(g_sample) * 2];

@@ -45,7 +45,7 @@ typedef enum {
     S_API_ANTHROPIC, S_API_CHAT, S_API_RESPONSES,  /* api dropdown display */
     S_EFF_LOW, S_EFF_MEDIUM, S_EFF_HIGH,           /* effort dropdown display */
     S_CFG_ERR_NAME, S_CFG_ERR_API, S_CFG_ERR_NUM, S_CFG_ERR_MAXTOK,
-    S_CFG_ERR_FULL,
+    S_CFG_ERR_FULL, S_CFG_ERR_NOMODEL,
     S_CONFIG_SAVED,      /* status-strip note after a successful save */
     S_RECALL_DONE,       /* status-strip note after a successful recall */
     S_RECALL_FAILED,     /* MessageBox title when a recall fails */
@@ -127,6 +127,7 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_CFG_ERR_NUM */      "数字字段包含无效值。",
     /* S_CFG_ERR_MAXTOK */   "max_tokens 必须大于 0。",
     /* S_CFG_ERR_FULL */     "模型数量已达上限(32)。",
+    /* S_CFG_ERR_NOMODEL */  "至少保留一个模型。",
     /* S_CONFIG_SAVED */     "配置已保存",
     /* S_RECALL_DONE */      "已撤回",
     /* S_RECALL_FAILED */    "撤回失败",
@@ -199,6 +200,7 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_CFG_ERR_NUM */      "A number field has an invalid value.",
     /* S_CFG_ERR_MAXTOK */   "max_tokens must be greater than 0.",
     /* S_CFG_ERR_FULL */     "Model list is full (32).",
+    /* S_CFG_ERR_NOMODEL */  "Keep at least one model.",
     /* S_CONFIG_SAVED */     "Configuration saved",
     /* S_RECALL_DONE */      "Message recalled",
     /* S_RECALL_FAILED */    "Recall failed",
