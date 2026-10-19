@@ -38,6 +38,7 @@
 #include "../core/utf.h"
 #include "chatview.h"
 #include "commands.h"
+#include "dlg_view.h"
 #include "inputbar.h"
 #include "strings.h"
 #include "tabbar.h"
@@ -431,6 +432,55 @@ static void paint_status_strip(HDC hdc, const RECT *client)
 }
 
 /* ------------------------------------------------------------------ */
+/* chatview link notifications (Task 18)                               */
+
+/* The message index travelled through PostMessage; the current session
+ * may have changed since the click, so validate everything. */
+static void open_think(int msg_idx)
+{
+    Msg *m;
+    char *buf;
+    size_t need = 1;
+    int j;
+
+    if (s_cur < 0 || s_cur >= s_nsess || msg_idx < 0
+        || msg_idx >= s_sess[s_cur]->nm)
+        return;
+    m = &s_sess[s_cur]->m[msg_idx];
+    for (j = 0; j < m->nb; j++)
+        if (m->b[j].kind == BLOCK_THINK && m->b[j].text != NULL)
+            need += strlen(m->b[j].text);
+    buf = (char *)malloc(need);
+    if (buf == NULL)
+        return;
+    buf[0] = '\0';
+    for (j = 0; j < m->nb; j++)
+        if (m->b[j].kind == BLOCK_THINK && m->b[j].text != NULL)
+            strcat(buf, m->b[j].text);
+    dlg_view_text(g_hwnd_main, LS(S_THINK_TITLE), buf);
+    free(buf);
+}
+
+static void open_image(int msg_idx, int blk_idx)
+{
+    Msg *m;
+    const char *url;
+
+    if (s_cur < 0 || s_cur >= s_nsess || msg_idx < 0
+        || msg_idx >= s_sess[s_cur]->nm)
+        return;
+    m = &s_sess[s_cur]->m[msg_idx];
+    if (blk_idx < 0 || blk_idx >= m->nb
+        || m->b[blk_idx].kind != BLOCK_IMAGE)
+        return;
+    url = m->b[blk_idx].text;
+    if (url == NULL || url[0] == '\0')
+        return;
+    dlg_view_image(g_hwnd_main, url,
+                   &g_cfg.m[inputbar_selected_model()], &g_cfg.p);
+}
+
+/* ------------------------------------------------------------------ */
 /* window proc                                                         */
 
 static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
@@ -468,6 +518,14 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
             return 0;
         }
         close_session((int)lp);
+        return 0;
+
+    case WM_APP_OPEN_THINK:
+        open_think((int)wp);
+        return 0;
+
+    case WM_APP_OPEN_IMAGE:
+        open_image((int)wp, (int)lp);
         return 0;
 
     case WM_TIMER:

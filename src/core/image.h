@@ -16,6 +16,8 @@
 #ifndef LLMCHAT32_CORE_IMAGE_H
 #define LLMCHAT32_CORE_IMAGE_H
 
+#include "config.h"   /* ModelCfg, ProxyCfg */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,6 +36,21 @@ int image_decode_mem(const void *data, int len, int *w, int *h,
 
 /* Release a buffer returned by image_decode_file/mem. NULL is fine. */
 void image_free(unsigned char *rgba);
+
+/* Fetch the image at url (http/https only; anything else fails with
+ * "unsupported url scheme" in err) using the same net/tls/http stack as
+ * llm_send: net_parse_url -> net_connect (proxy-aware) -> tls_connect
+ * (https only) -> GET -> http_read_body2 accumulator. Runs on the
+ * calling thread and blocks it for the whole transfer (Task 18 v1
+ * ruling: image downloads happen on the UI thread, a slow URL freezes
+ * the UI; Win98 has a single UI thread anyway).
+ *
+ * On success returns 0 and stores a malloc'd buffer of *len bytes in
+ * *data (caller frees with free()) with *len > 0. On any failure
+ * returns non-zero, *data is NULL, *len is 0, and err holds a readable
+ * message (truncated to errcap). HTTP non-2xx yields "HTTP <status>". */
+int image_fetch(const char *url, const ModelCfg *m, const ProxyCfg *proxy,
+                void **data, int *len, char *err, int errcap);
 
 #ifdef __cplusplus
 }

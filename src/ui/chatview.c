@@ -45,6 +45,7 @@
 #include "../core/image.h"
 #include "../core/utf.h"
 #include "draw.h"
+#include "mainwin.h"
 #include "strings.h"
 #include "ui.h"
 
@@ -531,6 +532,65 @@ static void layout_build(HDC hdc)
 }
 
 /* ------------------------------------------------------------------ */
+/* link hit-testing (Task 18)                                          */
+
+/* Run the layout now if it is stale (hit tests may arrive before the
+ * next paint). Needs a DC with ui_font selected, like paint does. */
+static void cv_ensure_layout(void)
+{
+    HDC hdc;
+    HGDIOBJ of;
+
+    if (s_layout_valid || s_hwnd == NULL)
+        return;
+    hdc = GetDC(s_hwnd);
+    if (hdc == NULL)
+        return;
+    of = SelectObject(hdc, ui_font());
+    layout_build(hdc);
+    SelectObject(hdc, of);
+    ReleaseDC(s_hwnd, hdc);
+}
+
+/* Content-space point -> link, or NULL. */
+static CvLink *cv_link_at(POINT pt_content)
+{
+    int k;
+
+    for (k = 0; k < s_nlinks; k++)
+        if (PtInRect(&s_links[k].rc, pt_content))
+            return &s_links[k];
+    return NULL;
+}
+
+static HCURSOR cv_hand_cursor(void)
+{
+    static HCURSOR s_hand = NULL;
+
+    if (s_hand == NULL)
+        s_hand = LoadCursor(NULL, MAKEINTRESOURCE(32649)); /* IDC_HAND */
+    return s_hand;
+}
+
+int chatview_hit_link(POINT pt, int *msg_idx, int *kind, int *block_idx)
+{
+    CvLink *lk;
+
+    cv_ensure_layout();
+    pt.y += s_scroll;            /* client -> content space */
+    lk = cv_link_at(pt);
+    if (lk == NULL)
+        return 0;
+    if (msg_idx != NULL)
+        *msg_idx = lk->msg;
+    if (kind != NULL)
+        *kind = lk->kind;
+    if (block_idx != NULL)
+        *block_idx = lk->blk;
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
 /* painting                                                            */
 
 static void cv_draw_link(HDC m, const RECT *rc, StrID sid)
@@ -748,6 +808,23 @@ static LRESULT CALLBACK chatview_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         }
         return 0;
 
+    case WM_SETCURSOR:
+        if (LOWORD(lp) == HTCLIENT) {
+            POINT pt;
+            CvLink *lk;
+
+            GetCursorPos(&pt);
+            ScreenToClient(hwnd, &pt);
+            cv_ensure_layout();
+            pt.y += s_scroll;
+            lk = cv_link_at(pt);
+            if (lk != NULL && cv_hand_cursor() != NULL) {
+                SetCursor(cv_hand_cursor());
+                return TRUE;
+            }
+        }
+        return DefWindowProc(hwnd, msg, wp, lp);
+
     case WM_LBUTTONDOWN:
         cw = cv_view_w();
         ch = cv_view_h();
@@ -765,6 +842,25 @@ static LRESULT CALLBACK chatview_wndproc(HWND hwnd, UINT msg, WPARAM wp,
                 cv_scroll_by(y < ty ? -ch : ch);
             }
             return 0;
+        }
+        {
+            POINT pt;
+            CvLink *lk;
+
+            cv_ensure_layout();
+            pt.x = x;
+            pt.y = y + s_scroll;
+            lk = cv_link_at(pt);
+            if (lk != NULL) {
+                /* notify mainwin AFTER we return from this handler */
+                if (lk->kind == CV_LK_THINK)
+                    PostMessage(g_hwnd_main, WM_APP_OPEN_THINK,
+                                (WPARAM)lk->msg, 0);
+                else
+                    PostMessage(g_hwnd_main, WM_APP_OPEN_IMAGE,
+                                (WPARAM)lk->msg, (LPARAM)lk->blk);
+                return 0;
+            }
         }
         return 0;
 

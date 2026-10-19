@@ -30,6 +30,11 @@ typedef enum {
     S_BTN_SEND, S_BTN_ABORT, S_THINK_LINK, S_IMAGE_LINK,
     S_CONFIRM_DEL_SESSION, S_SAVE_FAILED, S_ABOUT_TEXT,
     S_SEND_FAILED,       /* app_send could not start (OOM / too many tabs) */
+    S_THINK_TITLE,       /* Task 18 view dialogs */
+    S_IMAGE_TITLE, S_DLG_OK, S_DOWNLOADING, S_DOWNLOAD_FAILED, S_SAVE_AS,
+    S_IMG_FILTER,        /* GetSaveFileNameA filter description */
+    S_ALL_FILES,         /* GetSaveFileNameA "all files" entry */
+    S_DECODE_FAILED,     /* fetch ok but the bytes are not an image */
     S__COUNT
 } StrID;
 
@@ -63,7 +68,16 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_CONFIRM_DEL_SESSION */ "确定要删除该会话吗？",
     /* S_SAVE_FAILED */      "保存失败：",
     /* S_ABOUT_TEXT */       "LLMChat32 —— Windows 98 兼容的 LLM 聊天客户端。\nUTF-8 内核，极简依赖。",
-    /* S_SEND_FAILED */      "发送失败"
+    /* S_SEND_FAILED */      "发送失败",
+    /* S_THINK_TITLE */      "思考过程",
+    /* S_IMAGE_TITLE */      "图片",
+    /* S_DLG_OK */           "确定",
+    /* S_DOWNLOADING */      "下载中...",
+    /* S_DOWNLOAD_FAILED */  "下载失败：",
+    /* S_SAVE_AS */          "另存为(&S)...",
+    /* S_IMG_FILTER */       "图片文件 (*.png;*.jpg;*.jpeg;*.bmp;*.gif)",
+    /* S_ALL_FILES */        "所有文件 (*.*)",
+    /* S_DECODE_FAILED */    "无法解码图片"
 };
 
 const char *const g_strs_en[S__COUNT] = {
@@ -88,7 +102,16 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_CONFIRM_DEL_SESSION */ "Delete this session?",
     /* S_SAVE_FAILED */      "Save failed: ",
     /* S_ABOUT_TEXT */       "LLMChat32 - a Windows 98 compatible LLM chat client.\nUTF-8 core, minimal dependencies.",
-    /* S_SEND_FAILED */      "Send failed"
+    /* S_SEND_FAILED */      "Send failed",
+    /* S_THINK_TITLE */      "Thinking process",
+    /* S_IMAGE_TITLE */      "Image",
+    /* S_DLG_OK */           "OK",
+    /* S_DOWNLOADING */      "Downloading...",
+    /* S_DOWNLOAD_FAILED */  "Download failed: ",
+    /* S_SAVE_AS */          "Save &As...",
+    /* S_IMG_FILTER */       "Image files (*.png;*.jpg;*.jpeg;*.bmp;*.gif)",
+    /* S_ALL_FILES */        "All Files (*.*)",
+    /* S_DECODE_FAILED */    "Cannot decode image"
 };
 
 #else

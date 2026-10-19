@@ -45,6 +45,12 @@ int ui_text_width(HDC hdc, const char *utf8);
 /* SetWindowTextA after converting utf8 to the ANSI code page. */
 void ui_set_a(HWND hwnd, const char *utf8);
 
+/* SetWindowTextW on a caller-converted wide string. This is the outlet
+ * for long texts that would overflow ui_set_a's fixed conversion buffer
+ * (view-dialog editors); the caller produces w with utf8_to_utf16, so
+ * the encoding discipline (no UTF-8 handed to an API) is preserved. */
+void ui_set_ww(HWND hwnd, const wchar_t *w);
+
 /* Convert utf8 into out (cap bytes) as ANSI code page bytes, for A-APIs
  * that take a string argument rather than a window handle (e.g. combo box
  * CB_ADDSTRING/CB_INSERTSTRING). Same truncation rules as ui_set_a. */

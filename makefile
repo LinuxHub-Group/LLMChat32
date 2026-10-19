@@ -16,14 +16,14 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\dlg_view.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj
 APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
 
 build\llmchat32.exe: $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB)
 	@if not exist build mkdir build
-	$(CC) $(CFLAGS) -l=nt_win -fe=build\llmchat32.exe $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -l=nt_win -fe=build\llmchat32.exe $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB) ws2_32.lib advapi32.lib comdlg32.lib
 
 build\main.obj: src\main.c src\version.h src\core\config.h src\ui\mainwin.h src\ui\strings.h
 	@if not exist build mkdir build
@@ -33,7 +33,7 @@ build\ui.obj: src\ui\ui.c src\ui\ui.h src\ui\strings.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\ui.obj src\ui\ui.c
 
-build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\ui\inputbar.h src\core\config.h src\core\session.h src\core\app.h src\core\history.h src\core\utf.h
+build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\ui\tabbar.h src\ui\chatview.h src\ui\inputbar.h src\ui\dlg_view.h src\core\config.h src\core\session.h src\core\app.h src\core\history.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\mainwin.obj src\ui\mainwin.c
 
@@ -45,9 +45,16 @@ build\tabbar.obj: src\ui\tabbar.c src\ui\tabbar.h src\ui\mainwin.h src\ui\ui.h s
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\tabbar.obj src\ui\tabbar.c
 
-build\chatview.obj: src\ui\chatview.c src\ui\chatview.h src\ui\draw.h src\ui\ui.h src\ui\strings.h src\core\session.h src\core\utf.h src\core\image.h
+build\chatview.obj: src\ui\chatview.c src\ui\chatview.h src\ui\draw.h src\ui\ui.h src\ui\strings.h src\ui\mainwin.h src\core\session.h src\core\utf.h src\core\image.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\chatview.obj src\ui\chatview.c
+
+# Task 18 view dialogs (think text / image viewer). dlg_view.c pulls in
+# image.h (fetch+decode), strings.h, ui.h; GetSaveFileNameA comes from
+# comdlg32 (added to the exe link line above).
+build\dlg_view.obj: src\ui\dlg_view.c src\ui\dlg_view.h src\core\image.h src\core\config.h src\core\utf.h src\ui\strings.h src\ui\ui.h src\ui\draw.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\dlg_view.obj src\ui\dlg_view.c
 
 build\draw.obj: src\ui\draw.c src\ui\draw.h src\core\config.h src\core\utf.h
 	@if not exist build mkdir build
@@ -72,7 +79,9 @@ build\toml.obj: src\core\toml.c src\core\toml.h
 # image decoding: stb_image implementation TU (see image.c header for
 # the STBI_NO_* configuration, which is what keeps it -wx clean - no
 # per-file warning suppressions needed, unlike third_party\wolfssl).
-build\image.obj: src\core\image.c src\core\image.h third_party\stb_image.h
+# Task 18 adds image_fetch() on top of the net/tls/http stack, so the
+# rule lists those headers too (the app already links them).
+build\image.obj: src\core\image.c src\core\image.h src\core\net.h src\core\tls.h src\core\http.h src\core\config.h third_party\stb_image.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\image.obj src\core\image.c
 
@@ -186,10 +195,11 @@ tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\
 # image 解码层: stb_image 封装 (PNG/JPEG/BMP/GIF/TGA/PSD -> RGBA8)。
 # 混合断言在 draw.c 的 draw_blend_white（纯整数，无 GDI），但 draw.obj
 # 里的 ui_font/draw_bubble 引用 g_cfg 与 GDI，故链接 config/toml/utf +
-# gdi32 (与 app 一致).
-tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c
+# gdi32 (与 app 一致). Task 18 起 image.c 还引用 net/tls/http 符号
+# (image_fetch)，故测试链接全栈 + wolfssl + ws2_32/advapi32。
+tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\core\config.c src\core\toml.c src\core\utf.c gdi32.lib
+	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
 
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
@@ -214,6 +224,7 @@ clean: .SYMBOLIC
 	@if exist build\http.obj del build\http.obj
 	@if exist build\llm.obj del build\llm.obj
 	@if exist build\inputbar.obj del build\inputbar.obj
+	@if exist build\dlg_view.obj del build\dlg_view.obj
 	@if exist build\app.res del build\app.res
 	@if exist build\wolfssl.lib del build\wolfssl.lib
 	@if exist tests\test_tls_smoke.exe del tests\test_tls_smoke.exe

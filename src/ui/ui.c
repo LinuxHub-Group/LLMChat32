@@ -115,8 +115,17 @@ void ui_set_a(HWND hwnd, const char *utf8)
 {
     char buf[UI_ACP_CAP];
 
+    if (hwnd == NULL)
+        return;
     to_acp(utf8, buf, UI_ACP_CAP);
     SetWindowTextA(hwnd, buf);
+}
+
+void ui_set_ww(HWND hwnd, const wchar_t *w)
+{
+    if (w == NULL)
+        return;
+    SetWindowTextW(hwnd, w);
 }
 
 void ui_acp_a(char *out, int cap, const char *utf8)
