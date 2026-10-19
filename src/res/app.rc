@@ -1,0 +1,9 @@
+/*
+ * app.rc - application resources.
+ *
+ * Icon only; the menu is assembled programmatically from LS() strings
+ * in mainwin.c, not from this file.
+ */
+#include <windows.h>
+
+APPICON ICON "app.ico"

@@ -16,17 +16,43 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\utf.obj build\config.obj build\toml.obj
+APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
 
-build\llmchat32.exe: $(APP_OBJS) $(WOLFSSL_LIB)
+build\llmchat32.exe: $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB)
 	@if not exist build mkdir build
-	$(CC) $(CFLAGS) -l=nt_win -fe=build\llmchat32.exe $(APP_OBJS) $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -l=nt_win -fe=build\llmchat32.exe $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
-build\main.obj: src\main.c src\version.h
+build\main.obj: src\main.c src\version.h src\core\config.h src\ui\mainwin.h src\ui\strings.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\main.obj src\main.c
+
+build\ui.obj: src\ui\ui.c src\ui\ui.h src\ui\strings.h src\core\utf.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\ui.obj src\ui\ui.c
+
+build\mainwin.obj: src\ui\mainwin.c src\ui\mainwin.h src\ui\ui.h src\ui\strings.h src\ui\commands.h src\core\config.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\mainwin.obj src\ui\mainwin.c
+
+build\utf.obj: src\core\utf.c src\core\utf.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\utf.obj src\core\utf.c
+
+build\config.obj: src\core\config.c src\core\config.h src\core\toml.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\config.obj src\core\config.c
+
+build\toml.obj: src\core\toml.c src\core\toml.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\toml.obj src\core\toml.c
+
+# icon-only resource; the menu is built from LS() strings in code
+build\app.res: src\res\app.rc src\res\app.ico
+	@if not exist build mkdir build
+	wrc -q -r -i=src\res -fo=build\app.res src\res\app.rc
 
 # wolfSSL static library - delegates to its own makefile. Also rebuilds
 # when our port files change (user_settings.h, ow makefile).
@@ -104,6 +130,12 @@ clean: .SYMBOLIC
 	@if exist build\bomscan.obj del build\bomscan.obj
 	@if exist build\llmchat32.exe del build\llmchat32.exe
 	@if exist build\main.obj del build\main.obj
+	@if exist build\ui.obj del build\ui.obj
+	@if exist build\mainwin.obj del build\mainwin.obj
+	@if exist build\utf.obj del build\utf.obj
+	@if exist build\config.obj del build\config.obj
+	@if exist build\toml.obj del build\toml.obj
+	@if exist build\app.res del build\app.res
 	@if exist build\wolfssl.lib del build\wolfssl.lib
 	@if exist tests\test_tls_smoke.exe del tests\test_tls_smoke.exe
 	@if exist tests\test_utf.exe del tests\test_utf.exe
