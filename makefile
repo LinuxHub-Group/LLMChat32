@@ -36,13 +36,17 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
 tests\test_tls_smoke.exe: src\tests\test_tls_smoke.c src\tests\certs_google.h $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls_smoke.exe src\tests\test_tls_smoke.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+
+tests\test_utf.exe: src\tests\test_utf.c src\core\utf.h src\core\utf.c
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc -fe=tests\test_utf.exe src\tests\test_utf.c src\core\utf.c
 
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
@@ -51,4 +55,5 @@ clean: .SYMBOLIC
 	@if exist build\main.obj del build\main.obj
 	@if exist build\wolfssl.lib del build\wolfssl.lib
 	@if exist tests\test_tls_smoke.exe del tests\test_tls_smoke.exe
+	@if exist tests\test_utf.exe del tests\test_utf.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)
