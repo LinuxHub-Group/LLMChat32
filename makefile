@@ -36,7 +36,7 @@ $(WOLFSSL_LIB): $(WOLFSSL_DIR)\src\ssl.c $(WOLFSSL_DIR)\ow\user_settings.h $(WOL
 # --- tests ---------------------------------------------------------------
 # Console test apps (sources in src\tests, executables in tests\ for
 # build.bat's `for %%E in (tests\*.exe)` runner.
-TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe
+TEST_EXES = tests\test_tls_smoke.exe tests\test_utf.exe tests\test_json.exe tests\test_config.exe tests\test_history.exe
 
 test: all $(TEST_EXES) .SYMBOLIC
 
@@ -56,6 +56,10 @@ tests\test_config.exe: src\tests\test_config.c src\core\toml.h src\core\toml.c s
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc -fe=tests\test_config.exe src\tests\test_config.c src\core\toml.c src\core\config.c
 
+tests\test_history.exe: src\tests\test_history.c src\core\session.h src\core\session.c src\core\history.h src\core\history.c src\core\json.h src\core\json.c src\core\utf.h src\core\utf.c
+	@if not exist tests mkdir tests
+	$(CC) $(CFLAGS) -bc -fe=tests\test_history.exe src\tests\test_history.c src\core\session.c src\core\history.c src\core\json.c src\core\utf.c
+
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
 	@if exist build\bomscan.obj del build\bomscan.obj
@@ -66,4 +70,5 @@ clean: .SYMBOLIC
 	@if exist tests\test_utf.exe del tests\test_utf.exe
 	@if exist tests\test_json.exe del tests\test_json.exe
 	@if exist tests\test_config.exe del tests\test_config.exe
+	@if exist tests\test_history.exe del tests\test_history.exe
 	@if exist $(WOLFSSL_DIR)\ow\makefile (pushd $(WOLFSSL_DIR)\ow && wmake clean && popd)
