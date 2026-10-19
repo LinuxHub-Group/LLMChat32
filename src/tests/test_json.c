@@ -89,6 +89,41 @@ int main(void)
     CHECK(json_parse("{\"a\":}", 6, NULL, 0) == NULL);
     CHECK(json_parse(NULL, 0, err, sizeof err) == NULL);
 
+    /* --- whitespace tolerance: servers pretty-print with ", " / "\n  "
+     * separators (found by the Task 20 stream=false e2e: json.dumps
+     * default separators broke object key parsing after a comma) --- */
+    {
+        static const char doc[] =
+            "{\r\n  \"choices\": [\r\n    {\r\n      \"message\": {\r\n"
+            "        \"role\": \"assistant\",\r\n        \"content\": \"x\"\r\n"
+            "      },\r\n      \"finish_reason\": \"stop\"\r\n    }\r\n  ]\r\n}";
+
+        err[0] = '\0';
+        r = json_parse(doc, (int)sizeof(doc) - 1, err, sizeof err);
+        CHECK(r != NULL);
+        a = json_obj_get(r, "choices");
+        CHECK(a != NULL && json_type(a) == JARR && json_arr_len(a) == 1);
+        b = json_obj_get(json_arr_get(a, 0), "message");
+        CHECK(b != NULL
+              && strcmp(json_str(json_obj_get(b, "content")), "x") == 0);
+        CHECK(strcmp(json_str(json_obj_get(json_arr_get(a, 0),
+                                           "finish_reason")),
+                     "stop") == 0);
+        json_free(r);
+    }
+    {
+        static const char doc[] = "{\"a\": 1, \"b\": [1, 2, 3], \"c\": {\"d\": true, \"e\": null}}";
+
+        err[0] = '\0';
+        r = json_parse(doc, (int)sizeof(doc) - 1, err, sizeof err);
+        CHECK(r != NULL);
+        CHECK(json_num(json_obj_get(r, "a")) == 1.0);
+        CHECK(json_arr_len(json_obj_get(r, "b")) == 3);
+        CHECK(json_bool(json_obj_get(json_obj_get(r, "c"), "d")) == 1);
+        CHECK(json_type(json_obj_get(json_obj_get(r, "c"), "e")) == JNULL);
+        json_free(r);
+    }
+
     /* --- \uXXXX unescape: BMP --- */
     {
         static const char doc[] = "{\"s\":\"\\u4e2d\"}";

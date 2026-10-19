@@ -44,6 +44,7 @@
 
 #include "../core/image.h"
 #include "../core/utf.h"
+#include "commands.h"
 #include "draw.h"
 #include "mainwin.h"
 #include "strings.h"
@@ -590,6 +591,18 @@ int chatview_hit_link(POINT pt, int *msg_idx, int *kind, int *block_idx)
     return 1;
 }
 
+int chatview_msg_at(POINT pt)
+{
+    int i;
+
+    cv_ensure_layout();
+    pt.y += s_scroll;            /* client -> content space */
+    for (i = 0; i < s_nitems; i++)
+        if (PtInRect(&s_items[i].bubble, pt))
+            return i;
+    return -1;
+}
+
 /* ------------------------------------------------------------------ */
 /* painting                                                            */
 
@@ -882,6 +895,42 @@ static LRESULT CALLBACK chatview_wndproc(HWND hwnd, UINT msg, WPARAM wp,
                     cv_scroll_to((ny * ms) / (ch - th));
             }
             return 0;
+        }
+        return 0;
+
+    case WM_RBUTTONDOWN:
+        x = (int)(short)LOWORD(lp);
+        y = (int)(short)HIWORD(lp);
+        {
+            POINT pt;
+            int mi;
+            HMENU pm;
+            UINT cmd;
+
+            pt.x = x;
+            pt.y = y;
+            mi = chatview_msg_at(pt);
+            if (mi < 0)
+                break;          /* outside any bubble: default handling */
+            pm = CreatePopupMenu();
+            if (pm == NULL)
+                return 0;
+            /* recall is only meaningful on the user's own messages
+               (spec section 8: the message and everything after it are
+               deleted); other roles get a visibly disabled item */
+            menu_append_str(pm, s_sess->m[mi].role == ROLE_USER
+                                ? MF_STRING
+                                : MF_STRING | MF_GRAYED,
+                            IDM_RECALL, S_MENU_RECALL);
+            pt.x = x;
+            pt.y = y;
+            ClientToScreen(hwnd, &pt);
+            cmd = TrackPopupMenu(pm, TPM_LEFTALIGN | TPM_RIGHTBUTTON
+                                 | TPM_RETURNCMD, pt.x, pt.y, 0,
+                                 g_hwnd_main, NULL);
+            DestroyMenu(pm);    /* TrackPopupMenu copies what it needs */
+            if (cmd == IDM_RECALL)
+                PostMessage(g_hwnd_main, WM_APP_RECALL, (WPARAM)mi, 0);
         }
         return 0;
 

@@ -13,7 +13,11 @@ WOLFSSL_LIB  = build\wolfssl.lib
 # wolfSSL gets its own wmake (third_party\wolfssl\ow\makefile); -DWOLFSSL_USER_SETTINGS
 # and the include paths must match that makefile so lib and app agree on
 # struct layouts (see wolfSSL AGENTS.md: "same feature defines" rule).
-WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow
+# -wcd=202 silences the vendored headers' "defined but not referenced"
+# static-function noise so project TUs that include wolfssl (tls.c and the
+# test drivers below) stay warning-clean under -wx; the wolfSSL library
+# build itself keeps its own pre-existing warning profile.
+WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow -wcd=202
 
 # application objects, listed for later growth
 APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\dlg_view.obj build\dlg_config.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj

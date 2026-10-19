@@ -21,8 +21,13 @@
  * 50ms SetTimer drives app_pump() - simple and Win98-fine.
  *
  * Busy policy: while a send is in flight (app_busy) tab switching,
- * closing and new-tab are blocked (the tabbar selection is reverted) -
- * the Session being streamed into must stay the current one.
+ * closing, new-tab, config edits and recall are blocked (the tabbar
+ * selection is reverted) - the Session being streamed into must stay
+ * the current one. Recall itself: right-clicking a message bubble in
+ * the chatview pops a one-item menu (enabled only for the user's own
+ * messages); choosing it posts WM_APP_RECALL (chatview.h), which lands
+ * in do_recall() below: app_recall() truncates the message and its
+ * successors, persists, then the view is fully relaid out.
  */
 #include "mainwin.h"
 
@@ -210,7 +215,10 @@ static void sessions_init(void)
     char ids[MAX_SESSIONS][24];
     int n = history_list(g_cfg.g.history_dir, ids, MAX_SESSIONS);
     int i;
+    char skipped[512];          /* one combined UTF-8 notice body */
+    int nskip = 0;
 
+    skipped[0] = '\0';
     for (i = 0; i < n && s_nsess < MAX_SESSIONS; i++) {
         char path[600];
         char err[128];
@@ -219,15 +227,29 @@ static void sessions_init(void)
         if (s == NULL)
             break;
         sprintf(path, "%s\\%s.json", g_cfg.g.history_dir, ids[i]);
-        if (history_load(s, path, err, (int)sizeof err) != 0)
-            strcpy(s->id, ids[i]);  /* load rolls the id back; restore it
-                                       so a later save overwrites the bad
-                                       file instead of writing ".json" */
+        if (history_load(s, path, err, (int)sizeof err) != 0) {
+            /* corrupt/unreadable file: skip this session, remember the
+               name for one combined notice at the end; loading the
+               remaining sessions must not be aborted */
+            session_free(s);
+            nskip++;
+            if (skipped[0] == '\0')
+                strncpy(skipped, LS(S_CORRUPT_BODY), sizeof skipped - 1);
+            skipped[sizeof skipped - 1] = '\0';
+            strncat(skipped, ids[i],
+                    sizeof skipped - strlen(skipped) - 1);
+            strncat(skipped, ".json\n",
+                    sizeof skipped - strlen(skipped) - 1);
+            continue;
+        }
         s_sess[s_nsess] = s;
         s_nsess++;
     }
     if (s_nsess == 0)
         session_add_blank();        /* unsaved until the first send ends */
+    if (nskip > 0)
+        ui_msg_a(g_hwnd_main, skipped, LS(S_CORRUPT_TITLE),
+                 MB_OK | MB_ICONWARNING);
 }
 
 static void sessions_free_all(void)
@@ -482,6 +504,34 @@ static void open_image(int msg_idx, int blk_idx)
 }
 
 /* ------------------------------------------------------------------ */
+/* recall (Task 20)                                                    */
+
+/* Recall msg_idx of the current session (spec section 8: that message
+ * and everything after it are deleted and persisted). Blocked while a
+ * send is in flight: app_recall() truncates the very Session the worker
+ * is streaming into. */
+static void do_recall(int msg_idx)
+{
+    char err[256];
+
+    if (s_cur < 0 || s_cur >= s_nsess || msg_idx < 0
+        || msg_idx >= s_sess[s_cur]->nm)
+        return;
+    if (app_busy(s_app))
+        return;
+    if (app_recall(s_app, s_sess[s_cur], msg_idx, err, (int)sizeof err)
+        != 0) {
+        ui_msg_a(g_hwnd_main, (err[0] != '\0') ? err : LS(S_RECALL_FAILED),
+                 LS(S_RECALL_FAILED), MB_OK | MB_ICONERROR);
+        return;
+    }
+    /* same session, truncated content: a full relayout */
+    chatview_set_session(s_sess[s_cur]);
+    status_set_text(LS(S_RECALL_DONE));
+    status_invalidate(g_hwnd_main);
+}
+
+/* ------------------------------------------------------------------ */
 /* window proc                                                         */
 
 static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
@@ -529,6 +579,10 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         open_image((int)wp, (int)lp);
         return 0;
 
+    case WM_APP_RECALL:
+        do_recall((int)wp);
+        return 0;
+
     case WM_TIMER:
         if (wp == TIMER_PUMP_ID && s_app != NULL)
             app_pump(s_app);
@@ -560,7 +614,16 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
                 close_session(s_cur);
             break;
         case IDM_RECALL:
-            /* later: app_recall() */
+            /* Edit -> recall the user's most recent message */
+            if (!app_busy(s_app) && s_cur >= 0 && s_cur < s_nsess) {
+                int k = s_sess[s_cur]->nm;
+
+                while (--k >= 0)
+                    if (s_sess[s_cur]->m[k].role == ROLE_USER)
+                        break;
+                if (k >= 0)
+                    do_recall(k);
+            }
             break;
         case IDM_CLEAR:
             /* later: clear conversation view */

@@ -383,6 +383,7 @@ static JVal *p_parse_arr(P *p)
         }
         if (p->s[p->pos] == ',') {
             p->pos++;
+            p_skip_ws(p);
             continue;
         }
         if (p->s[p->pos] == ']') {
@@ -450,6 +451,7 @@ static JVal *p_parse_obj(P *p)
         }
         if (p->s[p->pos] == ',') {
             p->pos++;
+            p_skip_ws(p);
             continue;
         }
         if (p->s[p->pos] == '}') {

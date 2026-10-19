@@ -34,6 +34,10 @@ extern "C" {
 #define WM_APP_OPEN_THINK   (WM_APP + 0x110)   /* wParam = msg index  */
 #define WM_APP_OPEN_IMAGE   (WM_APP + 0x111)   /* wParam = msg index,
                                                   lParam = block index */
+#define WM_APP_RECALL       (WM_APP + 0x112)   /* wParam = msg index of a
+                                                  right-clicked ROLE_USER
+                                                  bubble the user asked to
+                                                  recall (Task 20) */
 
 /* Register "LlmChat" (first call only) and create the child window.
  * Returns the view HWND or NULL on failure; mainwin sizes it. */
@@ -68,6 +72,13 @@ void chatview_set_background(const char *path_utf8, int opacity);
  * link. Forces a lazy layout when the cached one is stale. Returns 0
  * when there is no link under the point. */
 int chatview_hit_link(POINT pt, int *msg_idx, int *kind, int *block_idx);
+
+/* Hit-test a CLIENT-AREA point against the message bubbles of the last
+ * layout (pt.y is a client coordinate; the scroll offset is added here),
+ * like chatview_hit_link but matching whole bubbles instead of link
+ * rects. Returns the message index, or -1 when the point is outside
+ * every bubble. Forces a lazy layout when the cached one is stale. */
+int chatview_msg_at(POINT pt);
 
 #ifdef __cplusplus
 }

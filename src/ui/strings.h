@@ -47,6 +47,10 @@ typedef enum {
     S_CFG_ERR_NAME, S_CFG_ERR_API, S_CFG_ERR_NUM, S_CFG_ERR_MAXTOK,
     S_CFG_ERR_FULL,
     S_CONFIG_SAVED,      /* status-strip note after a successful save */
+    S_RECALL_DONE,       /* status-strip note after a successful recall */
+    S_RECALL_FAILED,     /* MessageBox title when a recall fails */
+    S_CORRUPT_TITLE,     /* startup notice: session files skipped */
+    S_CORRUPT_BODY,      /* startup notice: listing header (file names appended) */
     S__COUNT
 } StrID;
 
@@ -123,7 +127,11 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_CFG_ERR_NUM */      "数字字段包含无效值。",
     /* S_CFG_ERR_MAXTOK */   "max_tokens 必须大于 0。",
     /* S_CFG_ERR_FULL */     "模型数量已达上限(32)。",
-    /* S_CONFIG_SAVED */     "配置已保存"
+    /* S_CONFIG_SAVED */     "配置已保存",
+    /* S_RECALL_DONE */      "已撤回",
+    /* S_RECALL_FAILED */    "撤回失败",
+    /* S_CORRUPT_TITLE */    "会话加载失败",
+    /* S_CORRUPT_BODY */     "以下会话文件已损坏，启动时已跳过：\n"
 };
 
 const char *const g_strs_en[S__COUNT] = {
@@ -191,7 +199,11 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_CFG_ERR_NUM */      "A number field has an invalid value.",
     /* S_CFG_ERR_MAXTOK */   "max_tokens must be greater than 0.",
     /* S_CFG_ERR_FULL */     "Model list is full (32).",
-    /* S_CONFIG_SAVED */     "Configuration saved"
+    /* S_CONFIG_SAVED */     "Configuration saved",
+    /* S_RECALL_DONE */      "Message recalled",
+    /* S_RECALL_FAILED */    "Recall failed",
+    /* S_CORRUPT_TITLE */    "Failed to load sessions",
+    /* S_CORRUPT_BODY */     "The following session files were corrupt and were skipped:\n"
 };
 
 #else
