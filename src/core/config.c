@@ -37,7 +37,7 @@ void config_defaults(Config *c)
 {
     memset(c, 0, sizeof *c);
     strcpy(c->g.font_name, "SimSun");
-    c->g.font_size = 9;
+    c->g.font_size = 11;
     strcpy(c->g.history_dir, "history");
     c->g.bg_opacity = 40;
     c->g.window_width = 640;

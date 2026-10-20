@@ -10,8 +10,10 @@
 #include <windows.h>
 
 #include "core/config.h"
+#include "core/diag.h"
 #include "ui/mainwin.h"
 #include "ui/strings.h"
+#include "ui/ui.h"
 #include "version.h"
 
 int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
@@ -36,6 +38,10 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance,
     g_cfg = cfg;   /* process-wide copy for the UI layer (see config.h) */
 
     ui_lang_init();
+
+    /* first diag touch: resolves the log path beside the exe and, when
+       llmdiag.txt exists there, installs the crash-logger filter */
+    diagf("=== llmchat32 %s start (win9x=%d) ===", LLM_VERSION, g_win9x);
 
     if( ui_mainwin_init( hInstance, nCmdShow, &cfg ) == NULL ) {
         WSACleanup();

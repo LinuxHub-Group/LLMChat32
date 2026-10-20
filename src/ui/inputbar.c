@@ -139,7 +139,8 @@ HWND inputbar_create(HWND parent)
      * round-trips CJK losslessly). */
     if (g_win9x)
         s_edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", NULL,
-                                 WS_CHILD | WS_VISIBLE | ES_MULTILINE |
+                                 WS_CHILD | WS_VISIBLE | WS_BORDER |
+                                 ES_MULTILINE |
                                  ES_WANTRETURN | WS_VSCROLL
                                  | ES_AUTOVSCROLL,
                                  0, 0, 0, 0, s_bar, (HMENU)IDIB_EDIT, inst,

@@ -227,7 +227,8 @@ static LRESULT CALLBACK text_wndproc(HWND hwnd, UINT msg, WPARAM wp,
          * feeds it CP_ACP bytes there). */
         if (g_win9x)
             d->edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", NULL,
-                                      WS_CHILD | WS_VISIBLE | ES_MULTILINE
+                                      WS_CHILD | WS_VISIBLE | WS_BORDER |
+                                      ES_MULTILINE
                                       | ES_READONLY | WS_VSCROLL
                                       | ES_AUTOVSCROLL,
                                       0, 0, 0, 0, hwnd, NULL, DLG_INST,

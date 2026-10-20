@@ -270,7 +270,7 @@ int main(void)
     err[0] = '\0';
     CHECK(config_load(&cfg, "__t5_no_such_file.toml", err, sizeof err) == 0);
     CHECK(cfg.g.bg_opacity == 40);
-    CHECK(cfg.g.font_size == 9);
+    CHECK(cfg.g.font_size == 11);
     CHECK(cfg.g.window_width == 640);
     CHECK(cfg.g.window_height == 480);
     CHECK(strcmp(cfg.g.history_dir, "history") == 0);
