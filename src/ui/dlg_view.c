@@ -13,6 +13,11 @@
  * rule - is the long think text: it is converted whole with
  * utf8_to_utf16 and set via SetWindowTextW through the ui_set_ww
  * outlet, exactly the outlet pattern ui.h documents for long texts.
+ * That edit is created with CreateWindowExW as a UNICODE control (same
+ * fix as the inputbar): an ANSI edit round-trips SetWindowTextW through
+ * the ACP and mangles CJK under ACP 65001; a Unicode edit stores UTF-16
+ * natively. The button/title stay ANSI - short strings the app sets
+ * itself render fine on any ACP.
  *
  * The image dialog paints the fetched/decoded image itself: the RGBA
  * buffer is alpha-premultiplied over white into a 32-bit bottom-up DIB
@@ -214,7 +219,7 @@ static LRESULT CALLBACK text_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         d = (TextDlg *)cs->lpCreateParams;
         SetWindowLong(hwnd, GWL_USERDATA, (LONG)d);
         ui_set_a(hwnd, d->title);
-        d->edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", NULL,
+        d->edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
                                   WS_CHILD | WS_VISIBLE | ES_MULTILINE
                                   | ES_READONLY | WS_VSCROLL
                                   | ES_AUTOVSCROLL,
