@@ -27,7 +27,7 @@ all: build\llmchat32.exe .SYMBOLIC
 
 build\llmchat32.exe: $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB)
 	@if not exist build mkdir build
-	$(CC) $(CFLAGS) -l=nt_win -fe=build\llmchat32.exe $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB) ws2_32.lib advapi32.lib comdlg32.lib
+	$(CC) $(CFLAGS) -l=nt_win -k0x100000 -fe=build\llmchat32.exe $(APP_OBJS) $(APP_RES) $(WOLFSSL_LIB) ws2_32.lib advapi32.lib comdlg32.lib
 
 build\main.obj: src\main.c src\version.h src\core\config.h src\ui\mainwin.h src\ui\strings.h
 	@if not exist build mkdir build
@@ -150,47 +150,47 @@ test: all $(TEST_EXES) .SYMBOLIC
 
 tests\test_tls_smoke.exe: src\tests\test_tls_smoke.c src\tests\certs_google.h src\core\certs_roots.h $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls_smoke.exe src\tests\test_tls_smoke.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_tls_smoke.exe src\tests\test_tls_smoke.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 tests\test_utf.exe: src\tests\test_utf.c src\core\utf.h src\core\utf.c
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_utf.exe src\tests\test_utf.c src\core\utf.c
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_utf.exe src\tests\test_utf.c src\core\utf.c
 
 tests\test_json.exe: src\tests\test_json.c src\core\json.h src\core\json.c src\core\utf.h src\core\utf.c
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_json.exe src\tests\test_json.c src\core\json.c src\core\utf.c
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_json.exe src\tests\test_json.c src\core\json.c src\core\utf.c
 
 tests\test_config.exe: src\tests\test_config.c src\core\toml.h src\core\toml.c src\core\config.h src\core\config.c
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_config.exe src\tests\test_config.c src\core\toml.c src\core\config.c
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_config.exe src\tests\test_config.c src\core\toml.c src\core\config.c
 
 tests\test_history.exe: src\tests\test_history.c src\core\session.h src\core\session.c src\core\history.h src\core\history.c src\core\json.h src\core\json.c src\core\utf.h src\core\utf.c
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_history.exe src\tests\test_history.c src\core\session.c src\core\history.c src\core\json.c src\core\utf.c
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_history.exe src\tests\test_history.c src\core\session.c src\core\history.c src\core\json.c src\core\utf.c
 
 # net 连接层: plain sockets + ws2_32 (no wolfssl needed at this layer).
 tests\test_net.exe: src\tests\test_net.c src\core\net.h src\core\net.c src\core\config.h
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_net.exe src\tests\test_net.c src\core\net.c ws2_32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_net.exe src\tests\test_net.c src\core\net.c ws2_32.lib
 
 # http 层: 请求/响应/chunked 解码，架在 net.c 之上 (no wolfssl needed).
 tests\test_http.exe: src\tests\test_http.c src\core\http.h src\core\http.c src\core\net.h src\core\net.c src\core\config.h
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -fe=tests\test_http.exe src\tests\test_http.c src\core\http.c src\core\net.c ws2_32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_http.exe src\tests\test_http.c src\core\http.c src\core\net.c ws2_32.lib
 
 # tls 层: wolfSSL 封装于 net.c 之上。tls.c 与 wolfssl.lib 必须用相同的
 # feature defines 编译（见 WOLFSSL_OPTS 注释），并链接 ws2_32/advapi32
 # （与 test_tls_smoke 一致）。
 tests\test_tls.exe: src\tests\test_tls.c src\core\tls.h src\core\tls.c src\core\net.h src\core\net.c src\core\certs_roots.h src\core\config.h $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_tls.exe src\tests\test_tls.c src\core\tls.c src\core\net.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_tls.exe src\tests\test_tls.c src\core\tls.c src\core\net.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 # llm 请求构造层: 三协议 JSON 组装 + 上下文截断 (纯函数, 无网络).
 # llm.c 现引用 net/tls/http 符号 (llm_send 全管线), 故链接全栈 + wolfssl
 # (与 test_llm_stream 一致); 源文件自身不触网。
 tests\test_llm_req.exe: src\tests\test_llm_req.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c src\core\diag.h src\core\diag.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_llm_req.exe src\tests\test_llm_req.c src\core\llm.c src\core\json.c src\core\session.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c src\core\diag.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_llm_req.exe src\tests\test_llm_req.c src\core\llm.c src\core\json.c src\core\session.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c src\core\diag.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 # llm 解析/发送层: SSE 行解析 + 事件分发 + 非流式解析 + 错误提取 + llm_send
 # 全管线。解析层经 llm_feed_sse/llm_parse_nonstream/llm_extract_error 直接
@@ -198,14 +198,14 @@ tests\test_llm_req.exe: src\tests\test_llm_req.c src\core\llm.h src\core\llm.c s
 # wolfssl + ws2_32/advapi32 (与 test_tls_smoke 一致)。
 tests\test_llm_stream.exe: src\tests\test_llm_stream.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c src\core\diag.h src\core\diag.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_llm_stream.exe src\tests\test_llm_stream.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c src\core\diag.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_llm_stream.exe src\tests\test_llm_stream.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c src\core\diag.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 # 应用编排层: 工作线程跑 llm_send (经 app_set_transport_hook 可被测试替换),
 # 锁队列 + app_pump 移交碎片/终态事件。链接全栈 + wolfssl (与
 # test_llm_stream 一致)。
 tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\llm.h src\core\llm.c src\core\json.h src\core\json.c src\core\session.h src\core\session.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c src\core\history.h src\core\history.c src\core\diag.h src\core\diag.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_app.exe src\tests\test_app.c src\core\app.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c src\core\history.c src\core\diag.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_app.exe src\tests\test_app.c src\core\app.c src\core\llm.c src\core\net.c src\core\tls.c src\core\http.c src\core\json.c src\core\config.c src\core\toml.c src\core\session.c src\core\utf.c src\core\history.c src\core\diag.c $(WOLFSSL_LIB) ws2_32.lib advapi32.lib
 
 # image 解码层: stb_image 封装 (PNG/JPEG/BMP/GIF/TGA/PSD -> RGBA8)。
 # 混合断言在 draw.c 的 draw_blend_white（纯整数，无 GDI），但 draw.obj
@@ -215,7 +215,7 @@ tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\
 # ws2_32/advapi32。
 tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\ui\ui.h src\ui\ui.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\ui\ui.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\ui\ui.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
 
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
