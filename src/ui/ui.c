@@ -140,7 +140,6 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
     int dw;
     int x;
     int y;
-    static int s_probe_left = 4;
 
     if ((fmt & DT_END_ELLIPSIS) && availw >= 0
         && ui_seg_w(hdc, w, n) > availw) {
@@ -166,29 +165,6 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
         n = lo + 1;
     }
     dw = ui_seg_w(hdc, w, n);
-    if (s_probe_left > 0 && availw < 400) {
-        /* first few small (tab/status/label) single-line draws only:
-           captures rect width, measured width and the raw ExtTextOutW
-           result + LastError for 9x font/clip forensics */
-        BOOL ok;
-
-        s_probe_left--;
-        SetLastError(0);
-        if (fmt & DT_CENTER)
-            x = rc->left + (availw - dw) / 2;
-        else if (fmt & DT_RIGHT)
-            x = rc->right - dw;
-        if (fmt & DT_VCENTER)
-            y = rc->top + (rc->bottom - rc->top - lh) / 2;
-        else if (fmt & DT_BOTTOM)
-            y = rc->bottom - lh;
-        ok = txtout(hdc, x, y, ETO_CLIPPED, rc, w, n);
-        diagf("txt: n=%d dw=%d rcw=%d ret=%d err=%lu u=%04x %04x %04x %04x",
-              n, dw, availw, (int)ok, (unsigned long)GetLastError(),
-              n > 0 ? (unsigned)w[0] : 0, n > 1 ? (unsigned)w[1] : 0,
-              n > 2 ? (unsigned)w[2] : 0, n > 3 ? (unsigned)w[3] : 0);
-        return;
-    }
     if (fmt & DT_CALCRECT) {
         rc->right = rc->left + dw;
         rc->bottom = rc->top + lh;
@@ -367,22 +343,6 @@ int ui_text_width(HDC hdc, const char *utf8)
     if (!GetTextExtentPointW(hdc, w, lstrlenW(w), &sz))
         return 0;
     return (int)sz.cx;
-}
-
-void ui_prime_dc(HDC hdc)
-{
-    static const wchar_t warm[] = {
-        (wchar_t)0x4F60, (wchar_t)0x597D,   /* 你好 */
-        (wchar_t)0x4E16, (wchar_t)0x754C,   /* 世界 */
-        (wchar_t)'A', (wchar_t)'z',
-        (wchar_t)0
-    };
-
-    if (!g_win9x)
-        return;
-    /* far above the visible area; the goal is only to force the 9x font
-       mapper/glyph cache to realize this font in this DC */
-    TextOutW(hdc, -64, -64, warm, 6);
 }
 
 /* ------------------------------------------------------------------ */

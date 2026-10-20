@@ -59,15 +59,6 @@ void ui_drawtext_w(HDC hdc, const char *utf8, RECT *rc, UINT fmt);
  * is preserved. */
 void ui_drawtext_ww(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt);
 
-/* Windows 9x font-realization warm-up. On 9x, GetTextExtentPointW
- * returns wrong (too small) widths for a freshly created font until the
- * font has actually drawn something in that DC - layouts built from the
- * first measurements are broken (offset/clipped tab text) and heal on
- * repaint once the font has warmed. Call once per paint after selecting
- * the text font, BEFORE the first measurement of that paint: it draws a
- * couple of CJK+ASCII glyphs far above the visible area. No-op on NT. */
-void ui_prime_dc(HDC hdc);
-
 /* Pixel width of utf8 under the DC's current font, 0 on failure. */
 int ui_text_width(HDC hdc, const char *utf8);
 
