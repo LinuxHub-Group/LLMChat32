@@ -15,10 +15,4 @@
 
 void diagf(const char *fmt, ...);
 
-/* One-shot font identity probe: logs the handle, face name, charset
-   and height of a HFONT (or "font=NULL"). Used to compare the fonts
-   picked on Windows 9x, where DEFAULT_CHARSET font mapping differs
-   between DC flavors. */
-void diag_font(const char *tag, HFONT f);
-
 #endif

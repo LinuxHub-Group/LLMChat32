@@ -20,7 +20,7 @@ WOLFSSL_LIB  = build\wolfssl.lib
 WOLFSSL_OPTS = -DWOLFSSL_USER_SETTINGS -i=$(WOLFSSL_DIR) -i=$(WOLFSSL_DIR)\ow -wcd=202
 
 # application objects, listed for later growth
-APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\dlg_view.obj build\dlg_config.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj build\diag.obj build\fmt.obj
+APP_OBJS = build\main.obj build\ui.obj build\mainwin.obj build\tabbar.obj build\chatview.obj build\inputbar.obj build\dlg_view.obj build\dlg_config.obj build\draw.obj build\session.obj build\utf.obj build\config.obj build\toml.obj build\image.obj build\app.obj build\history.obj build\json.obj build\net.obj build\tls.obj build\http.obj build\llm.obj build\diag.obj build\fmt.obj build\msgcopy.obj
 APP_RES  = build\app.res
 
 all: build\llmchat32.exe .SYMBOLIC
@@ -109,6 +109,10 @@ build\fmt.obj: src\core\fmt.c src\core\fmt.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\fmt.obj src\core\fmt.c
 
+build\msgcopy.obj: src\core\msgcopy.c src\core\session.h
+	@if not exist build mkdir build
+	$(CC) $(CFLAGS) -c -fo=build\msgcopy.obj src\core\msgcopy.c
+
 build\history.obj: src\core\history.c src\core\history.h src\core\session.h src\core\json.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\history.obj src\core\history.c
@@ -168,9 +172,9 @@ tests\test_config.exe: src\tests\test_config.c src\core\toml.h src\core\toml.c s
 	@if not exist tests mkdir tests
 	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_config.exe src\tests\test_config.c src\core\toml.c src\core\config.c
 
-tests\test_history.exe: src\tests\test_history.c src\core\session.h src\core\session.c src\core\history.h src\core\history.c src\core\json.h src\core\json.c src\core\utf.h src\core\utf.c
+tests\test_history.exe: src\tests\test_history.c src\core\session.h src\core\session.c src\core\history.h src\core\history.c src\core\json.h src\core\json.c src\core\utf.h src\core\utf.c src\core\msgcopy.c
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_history.exe src\tests\test_history.c src\core\session.c src\core\history.c src\core\json.c src\core\utf.c
+	$(CC) $(CFLAGS) -bc -k0x100000 -fe=tests\test_history.exe src\tests\test_history.c src\core\session.c src\core\history.c src\core\json.c src\core\utf.c src\core\msgcopy.c
 
 # net 连接层: plain sockets + ws2_32 (no wolfssl needed at this layer).
 tests\test_net.exe: src\tests\test_net.c src\core\net.h src\core\net.c src\core\config.h src\core\fmt.c

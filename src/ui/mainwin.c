@@ -576,9 +576,6 @@ static void do_copy_msg(int msg_idx)
     if (utf8 == NULL)
         return;
     msg_copy_text(m, utf8, need + 1);
-    diagf("copy: msg=%d need=%d head=%02x %02x %02x %02x '%.12s'",
-          msg_idx, need, (unsigned char)utf8[0], (unsigned char)utf8[1],
-          (unsigned char)utf8[2], (unsigned char)utf8[3], utf8);
     /* wchar units never exceed the UTF-8 byte count (one byte -> at
        most one unit; a 4-byte sequence -> two), so need+1 is a safe
        upper bound for the conversion buffer */
@@ -644,7 +641,6 @@ static void do_copy_msg(int msg_idx)
                 if (ha != NULL)
                     GlobalFree(ha);
             }
-            diagf("copy: clipboard ok=%d", ok);
         } else {
             GlobalFree(hg);
         }
