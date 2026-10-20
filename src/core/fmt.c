@@ -67,6 +67,16 @@ int fmt_vsnprintf(char *buf, int cap, const char *fmt, va_list ap)
         buf[0] = '\0';
     if (fmt == 0)
         return 0;
+    if ((unsigned long)fmt < 0x10000UL) {
+        /* wild near-NULL format pointer (seen as a crash inside this
+           scanner on Windows 9x): refuse to dereference it */
+        static const char bad[] = "(BADFMT)";
+        int i;
+
+        for (i = 0; bad[i] != '\0'; i++)
+            fputc_(&f, bad[i]);
+        return f.n;
+    }
 
     p = fmt;
     while (*p != '\0') {

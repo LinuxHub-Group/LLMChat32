@@ -167,9 +167,10 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
         else if (fmt & DT_BOTTOM)
             y = rc->bottom - lh;
         ok = ExtTextOutW(hdc, x, y, ETO_CLIPPED, rc, w, n, NULL);
-        diagf("txt: n=%d dw=%d rcw=%d ret=%d err=%lu first=%04x",
+        diagf("txt: n=%d dw=%d rcw=%d ret=%d err=%lu u=%04x %04x %04x %04x",
               n, dw, availw, (int)ok, (unsigned long)GetLastError(),
-              n > 0 ? (unsigned)w[0] : 0);
+              n > 0 ? (unsigned)w[0] : 0, n > 1 ? (unsigned)w[1] : 0,
+              n > 2 ? (unsigned)w[2] : 0, n > 3 ? (unsigned)w[3] : 0);
         return;
     }
     if (fmt & DT_CALCRECT) {
