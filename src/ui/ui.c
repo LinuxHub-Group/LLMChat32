@@ -147,10 +147,6 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
         n = lo + 1;
     }
     dw = ui_seg_w(hdc, w, n);
-    if (n <= 4)
-        diagf("txt: single n=%d dw=%d rcw=%d first=%04x font=%08x",
-              n, dw, rc->right - rc->left, n > 0 ? (unsigned)w[0] : 0,
-              (unsigned)GetCurrentObject(hdc, OBJ_FONT));
     if (fmt & DT_CALCRECT) {
         rc->right = rc->left + dw;
         rc->bottom = rc->top + lh;

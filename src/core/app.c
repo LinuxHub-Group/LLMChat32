@@ -54,6 +54,7 @@ struct App {
     AppEvents ev;
     void *ev_ctx;
     AppTransportFn transport;   /* NULL -> real llm_send */
+    int diag_frag;              /* sparse fragment-log counter */
 
     volatile int cancel;        /* set by app_abort, polled by transport */
     volatile int term_lost;     /* worker: terminal node could not be queued */
@@ -366,7 +367,14 @@ void app_pump(App *a)
         n = q_pop(a);
         if (n == NULL)
             break;
-        diagf("app: pump node type=%d len=%d", n->type, n->len);
+        /* high-volume fragment nodes are logged sparsely: a heavy stdio
+           or even WriteFile-per-fragment path once crashed 9x builds */
+        if (n->type != QTEXT && n->type != QTHINK) {
+            diagf("app: pump node type=%d len=%d", n->type, n->len);
+        } else if (++a->diag_frag % 50 == 1) {
+            diagf("app: pump frag type=%d len=%d (every 50th)",
+                  n->type, n->len);
+        }
         if (n->type == QTEXT || n->type == QTHINK)
             pump_frag(a, n);
         else
