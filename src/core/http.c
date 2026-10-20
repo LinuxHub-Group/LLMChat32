@@ -32,6 +32,7 @@
 #include <stdarg.h>     /* va_list for set_errf / req_appendf */
 
 #include "http.h"
+#include "fmt.h"
 
 #define HTTP_REQ_CAP   4096    /* serialized request head */
 #define HTTP_HEAD_CAP  8192    /* response status line + headers */
@@ -53,7 +54,7 @@ static void set_errf(char *err, int errcap, const char *fmt, ...)
     if (err && errcap > 0) {
         va_list ap;
         va_start(ap, fmt);
-        vsnprintf(err, (size_t)errcap, fmt, ap);
+        fmt_vsnprintf(err, (size_t)errcap, fmt, ap);
         err[errcap - 1] = '\0';
         va_end(ap);
     }
@@ -132,7 +133,7 @@ static int req_appendf(char *buf, int cap, int *n, const char *fmt, ...)
     if (*n >= cap - 1)
         return -1;
     va_start(ap, fmt);
-    rc = vsnprintf(buf + *n, (size_t)(cap - *n), fmt, ap);
+    rc = fmt_vsnprintf(buf + *n, (size_t)(cap - *n), fmt, ap);
     va_end(ap);
     if (rc < 0 || rc >= cap - *n)
         return -1;

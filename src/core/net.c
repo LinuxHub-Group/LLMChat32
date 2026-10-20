@@ -25,6 +25,7 @@
 #include <winsock2.h>
 
 #include "net.h"
+#include "fmt.h"
 
 struct NetConn { SOCKET sock; };
 
@@ -43,7 +44,7 @@ static void set_errf(char *err, int errcap, const char *fmt, ...)
     if (err && errcap > 0) {
         va_list ap;
         va_start(ap, fmt);
-        vsnprintf(err, (size_t)errcap, fmt, ap);
+        fmt_vsnprintf(err, errcap, fmt, ap);
         err[errcap - 1] = '\0';
         va_end(ap);
     }
@@ -180,21 +181,24 @@ static int proxy_send_request(NetConn *c, const char *host,
         set_err(err, errcap, "CONNECT target host name too long");
         return -1;
     }
-    n = sprintf(req, "CONNECT %s:%u HTTP/1.1\r\nHost: %s:%u\r\n",
-                host, (unsigned)port, host, (unsigned)port);
+    n = fmt_snprintf(req, (int)sizeof req,
+                     "CONNECT %s:%u HTTP/1.1\r\nHost: %s:%u\r\n",
+                     host, (unsigned)port, host, (unsigned)port);
     if (proxy->username[0]) {
         char cred[160];   /* "user:pass" from fixed 64-byte fields */
         char b64[220];
 
-        sprintf(cred, "%.*s:%.*s", 63, proxy->username, 63, proxy->password);
+        fmt_snprintf(cred, (int)sizeof cred, "%.*s:%.*s", 63,
+                     proxy->username, 63, proxy->password);
         if (b64_encode((const unsigned char *)cred, (int)strlen(cred),
                        b64, (int)sizeof(b64)) != 0) {
             set_err(err, errcap, "proxy credentials too long");
             return -1;
         }
-        n += sprintf(req + n, "Proxy-Authorization: Basic %s\r\n", b64);
+        n += fmt_snprintf(req + n, (int)sizeof(req) - n,
+                          "Proxy-Authorization: Basic %s\r\n", b64);
     }
-    n += sprintf(req + n, "\r\n");
+    n += fmt_snprintf(req + n, (int)sizeof(req) - n, "\r\n");
     if (n < 0 || n >= (int)sizeof(req)) {
         set_err(err, errcap, "CONNECT request too long");
         return -1;
@@ -279,7 +283,8 @@ int net_connect(NetConn **out, const char *host, unsigned short port,
     }
     s = socket(AF_INET, SOCK_STREAM, 0);
     if (s == INVALID_SOCKET) {
-        sprintf(err, "socket() failed (wsa %d)", WSAGetLastError());
+        fmt_snprintf(err, errcap, "socket() failed (wsa %d)",
+                     WSAGetLastError());
         return -1;
     }
     if (connect_timeboxed(s, &sa, timeout_ms) != 0) {

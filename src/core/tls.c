@@ -32,6 +32,7 @@
 #include <wolfssl/ssl.h>
 
 #include "tls.h"
+#include "fmt.h"
 #include "certs_roots.h"
 
 struct TlsConn {
@@ -56,7 +57,7 @@ static void set_errf(char *err, int errcap, const char *fmt, ...)
     if (err && errcap > 0) {
         va_list ap;
         va_start(ap, fmt);
-        vsnprintf(err, (size_t)errcap, fmt, ap);
+        fmt_vsnprintf(err, (size_t)errcap, fmt, ap);
         err[errcap - 1] = '\0';
         va_end(ap);
     }

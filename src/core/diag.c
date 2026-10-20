@@ -22,6 +22,7 @@
 #include <windows.h>
 
 #include "diag.h"
+#include "fmt.h"
 
 static int g_diag_state;    /* 0 unknown, 1 enabled, 2 disabled */
 static char g_path[MAX_PATH];
@@ -93,7 +94,7 @@ void diagf(const char *fmt, ...)
     if (!diag_enabled())
         return;
     va_start(ap, fmt);
-    n = vsnprintf(buf, sizeof buf - 2, fmt, ap);
+    n = fmt_vsnprintf(buf, (int)sizeof buf - 2, fmt, ap);
     va_end(ap);
     if (n < 0)
         return;
