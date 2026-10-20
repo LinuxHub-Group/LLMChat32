@@ -212,6 +212,36 @@ int main(void)
     CHECK(n == 2 && strcmp(ids[0], "1") == 0 && strcmp(ids[1], "10") == 0);
     CHECK(history_delete(DIR_LST, "2") == 0);  /* already gone: not an error */
 
+    /* --- msg_copy_text: TEXT joined, THINK excluded, IMAGE as
+       [图片] placeholder (clipboard copy must never include the
+       thinking content nor the viewer link) --- */
+    {
+        Msg cm;
+        char cbuf[256];
+
+        memset(&cm, 0, sizeof cm);
+        msg_add_block(&cm, BLOCK_TEXT, "first");
+        msg_add_block(&cm, BLOCK_THINK, "secret thinking");
+        msg_add_block(&cm, BLOCK_TEXT, "second \xe4\xb8\xad");
+        msg_add_block(&cm, BLOCK_IMAGE, "http://x/y.png");
+        CHECK(msg_copy_text(&cm, NULL, 0) ==
+              (int)(strlen("first\n\nsecond \xe4\xb8\xad\n\n"
+                           "[\xe5\x9b\xbe\xe7\x89\x87]")));
+        cbuf[0] = '\0';
+        CHECK(msg_copy_text(&cm, cbuf, sizeof cbuf) > 0);
+        CHECK(strcmp(cbuf,
+                     "first\n\nsecond \xe4\xb8\xad\n\n"
+                     "[\xe5\x9b\xbe\xe7\x89\x87]") == 0);
+        /* a message with only a think block copies empty */
+        cm.nb = 0;
+        msg_add_block(&cm, BLOCK_THINK, "only thinking");
+        cbuf[0] = 'x';
+        CHECK(msg_copy_text(&cm, cbuf, sizeof cbuf) == 0);
+        CHECK(cbuf[0] == '\0');
+        free(cm.b[0].text);
+        free(cm.b);
+    }
+
     /* --- teardown --- */
     session_free(s);
     session_free(s2);

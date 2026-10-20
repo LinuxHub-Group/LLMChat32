@@ -38,6 +38,9 @@ extern "C" {
                                                   right-clicked ROLE_USER
                                                   bubble the user asked to
                                                   recall (Task 20) */
+#define WM_APP_COPY_MSG     (WM_APP + 0x113)   /* wParam = msg index of a
+                                                  right-clicked bubble the
+                                                  user asked to copy */
 
 /* Register "LlmChat" (first call only) and create the child window.
  * Returns the view HWND or NULL on failure; mainwin sizes it. */

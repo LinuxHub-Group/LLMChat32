@@ -924,9 +924,10 @@ static LRESULT CALLBACK chatview_wndproc(HWND hwnd, UINT msg, WPARAM wp,
             pm = CreatePopupMenu();
             if (pm == NULL)
                 return 0;
-            /* recall is only meaningful on the user's own messages
-               (spec section 8: the message and everything after it are
-               deleted); other roles get a visibly disabled item */
+            /* copy is offered on every message; recall only makes sense
+               on the user's own messages (spec section 8: the message
+               and everything after it are deleted) */
+            menu_append_str(pm, MF_STRING, IDM_COPY, S_MENU_COPY);
             menu_append_str(pm, s_sess->m[mi].role == ROLE_USER
                                 ? MF_STRING
                                 : MF_STRING | MF_GRAYED,
@@ -940,6 +941,8 @@ static LRESULT CALLBACK chatview_wndproc(HWND hwnd, UINT msg, WPARAM wp,
             DestroyMenu(pm);    /* TrackPopupMenu copies what it needs */
             if (cmd == IDM_RECALL)
                 PostMessage(g_hwnd_main, WM_APP_RECALL, (WPARAM)mi, 0);
+            else if (cmd == IDM_COPY)
+                PostMessage(g_hwnd_main, WM_APP_COPY_MSG, (WPARAM)mi, 0);
         }
         return 0;
 

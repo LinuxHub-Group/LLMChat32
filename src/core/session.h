@@ -31,6 +31,13 @@ Msg*     session_add_msg(Session*, Role);
 /* Append a block with a malloc'd copy of utf8_text; NULL on OOM. */
 Block*   msg_add_block(Msg*, BlockKind, const char *utf8_text);
 
+/* Build the copy-to-clipboard text of a message: TEXT blocks joined by
+ * a blank line, IMAGE blocks as the [图片] placeholder, THINK blocks
+ * skipped (the thinking stays behind its viewer link and must not leak
+ * into copied content). Returns the needed byte count (excluding NUL);
+ * writes at most cap bytes (NUL-terminated) when buf != NULL. */
+int      msg_copy_text(const Msg*, char *buf, int cap);
+
 /* Free all block texts, block arrays, the message array, the Session. */
 void     session_free(Session*);
 

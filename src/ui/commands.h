@@ -16,6 +16,7 @@ enum {
     IDM_NEW_CHAT = 100,
     IDM_CLOSE_CHAT,
     IDM_RECALL,
+    IDM_COPY,
     IDM_CLEAR,
     IDM_MODEL_CFG,
     IDM_ABOUT,

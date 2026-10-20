@@ -47,6 +47,8 @@ typedef enum {
     S_CFG_ERR_NAME, S_CFG_ERR_API, S_CFG_ERR_NUM, S_CFG_ERR_MAXTOK,
     S_CFG_ERR_FULL, S_CFG_ERR_NOMODEL,
     S_CONFIG_SAVED,      /* status-strip note after a successful save */
+    S_MENU_COPY,         /* bubble context menu: copy message content */
+    S_COPIED,            /* status-strip note after a clipboard copy */
     S_RECALL_DONE,       /* status-strip note after a successful recall */
     S_RECALL_FAILED,     /* MessageBox title when a recall fails */
     S_CORRUPT_TITLE,     /* startup notice: session files skipped */
@@ -130,6 +132,8 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_CFG_ERR_FULL */     "模型数量已达上限(32)。",
     /* S_CFG_ERR_NOMODEL */  "至少保留一个模型。",
     /* S_CONFIG_SAVED */     "配置已保存",
+    /* S_MENU_COPY */        "复制内容(&C)",
+    /* S_COPIED */           "已复制",
     /* S_RECALL_DONE */      "已撤回",
     /* S_RECALL_FAILED */    "撤回失败",
     /* S_CORRUPT_TITLE */    "会话加载失败",
@@ -204,6 +208,8 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_CFG_ERR_FULL */     "Model list is full (32).",
     /* S_CFG_ERR_NOMODEL */  "Keep at least one model.",
     /* S_CONFIG_SAVED */     "Configuration saved",
+    /* S_MENU_COPY */        "&Copy content",
+    /* S_COPIED */           "Copied",
     /* S_RECALL_DONE */      "Message recalled",
     /* S_RECALL_FAILED */    "Recall failed",
     /* S_CORRUPT_TITLE */    "Failed to load sessions",

@@ -544,6 +544,83 @@ static void do_recall(int msg_idx)
 }
 
 /* ------------------------------------------------------------------ */
+/* clipboard copy (bubble context menu)                                */
+
+/* Copy msg_idx of the current session to the clipboard as
+ * CF_UNICODETEXT: text blocks joined, [图片] placeholder, thinking
+ * excluded (msg_copy_text). Copying is allowed mid-send - the Session
+ * blocks are only appended to by the pump while we read them, and a
+ * worst-case torn read of the tail fragment is harmless clipboard
+ * content, so no busy guard here. */
+static void do_copy_msg(int msg_idx)
+{
+    Msg *m;
+    char *utf8;
+    int need;
+    wchar_t *w;
+    int wlen;
+    HGLOBAL hg;
+    int ok = 0;
+
+    if (s_cur < 0 || s_cur >= s_nsess || msg_idx < 0
+        || msg_idx >= s_sess[s_cur]->nm)
+        return;
+    m = &s_sess[s_cur]->m[msg_idx];
+    need = msg_copy_text(m, NULL, 0);
+    if (need <= 0) {
+        status_set_text(LS(S_RECALL_FAILED));   /* nothing to copy */
+        status_invalidate(g_hwnd_main);
+        return;
+    }
+    utf8 = (char *)malloc((size_t)need + 1);
+    if (utf8 == NULL)
+        return;
+    msg_copy_text(m, utf8, need + 1);
+    diagf("copy: msg=%d need=%d head=%02x %02x %02x %02x '%.12s'",
+          msg_idx, need, (unsigned char)utf8[0], (unsigned char)utf8[1],
+          (unsigned char)utf8[2], (unsigned char)utf8[3], utf8);
+    /* wchar units never exceed the UTF-8 byte count (one byte -> at
+       most one unit; a 4-byte sequence -> two), so need+1 is a safe
+       upper bound for the conversion buffer */
+    hg = GlobalAlloc(GMEM_MOVEABLE,
+                     (size_t)(need + 1) * sizeof(wchar_t));
+    if (hg != NULL) {
+        w = (wchar_t *)GlobalLock(hg);
+        if (w != NULL) {
+            wlen = utf8_to_utf16(utf8, w, need + 1);
+            if (wlen < 0)
+                wlen = 0;
+            w[wlen] = L'\0';
+            GlobalUnlock(hg);
+            {
+                int tries;
+
+                for (tries = 0; tries < 5 && !ok; tries++) {
+                    if (OpenClipboard(g_hwnd_main)) {
+                        EmptyClipboard();
+                        ok = SetClipboardData(CF_UNICODETEXT, hg) != NULL;
+                        CloseClipboard();
+                        break;
+                    }
+                    Sleep(60);  /* clipboard watchers (VM tools etc.)
+                                   transiently hold it open */
+                }
+            }
+            diagf("copy: clipboard ok=%d", ok);
+            if (!ok)
+                GlobalFree(hg);
+        } else {
+            GlobalFree(hg);
+        }
+    }
+    free(utf8);
+    if (ok) {
+        status_set_text(LS(S_COPIED));
+        status_invalidate(g_hwnd_main);
+    }
+}
+
+/* ------------------------------------------------------------------ */
 /* window proc                                                         */
 
 static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
@@ -593,6 +670,10 @@ static LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp,
 
     case WM_APP_RECALL:
         do_recall((int)wp);
+        return 0;
+
+    case WM_APP_COPY_MSG:
+        do_copy_msg((int)wp);
         return 0;
 
     case WM_TIMER:
