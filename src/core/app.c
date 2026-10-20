@@ -36,6 +36,7 @@
 
 #include "app.h"
 #include "history.h"
+#include "diag.h"
 
 /* queue node types */
 enum { QTEXT, QTHINK, QDONE, QERROR };
@@ -189,6 +190,7 @@ static void worker_main(void *arg)
     WCtx w;
     int rc;
 
+    diagf("app: worker_main enter (model_idx=%d)", a->model_idx);
     w.a = a;
     w.finish = 0;
     w.has_err = 0;
@@ -201,6 +203,8 @@ static void worker_main(void *arg)
     else
         rc = llm_send(&a->cfg.m[a->model_idx], &a->cfg.p, a->sess, &WORKER_EV,
                       &w, &a->cancel, w.err, (int)sizeof(w.err));
+    diagf("app: transport rc=%d finish=%d has_err=%d err='%s'",
+          rc, w.finish, w.has_err, w.err);
 
     /* a lost terminal node would leave app_busy() stuck forever, so flag
        it; the pump synthesizes the terminal event (on_error) instead */
@@ -215,6 +219,7 @@ static void worker_main(void *arg)
         if (q_push(a, QDONE, w.finish, NULL, 0) != 0)
             a->term_lost = 1;
     }
+    diagf("app: worker_main exit (term_lost=%d)", a->term_lost);
 }
 
 /* --- session helpers (UI/test thread only) --------------------------------- */
@@ -361,6 +366,7 @@ void app_pump(App *a)
         n = q_pop(a);
         if (n == NULL)
             break;
+        diagf("app: pump node type=%d len=%d", n->type, n->len);
         if (n->type == QTEXT || n->type == QTHINK)
             pump_frag(a, n);
         else
@@ -476,6 +482,8 @@ int app_send(App *a, Session *s, const char *user_text)
         return 1;
 
     old_nm = s->nm;
+    diagf("app: app_send enter (model_idx=%d text_len=%u)",
+          a->model_idx, (unsigned)strlen(user_text));
     m = session_add_msg(s, ROLE_USER);
     if (m == NULL)
         return -1;
@@ -499,6 +507,7 @@ int app_send(App *a, Session *s, const char *user_text)
      * 256KB stack: the TLS handshake (wolfSSL) recurses deeper than the
      * previously assumed 64KB budget; never verified there. */
     h = _beginthread(worker_main, (unsigned)(256 * 1024), a);
+    diagf("app: _beginthread -> %lu", h);
     if (h == (unsigned long)-1) {
         a->busy = 0;
         a->sess = NULL;

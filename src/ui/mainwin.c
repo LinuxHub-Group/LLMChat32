@@ -41,6 +41,7 @@
 #include "../core/history.h"
 #include "../core/session.h"
 #include "../core/utf.h"
+#include "../core/diag.h"
 #include "chatview.h"
 #include "commands.h"
 #include "dlg_config.h"
@@ -327,6 +328,10 @@ static void do_send_or_abort(void)
         return;
     }
     inputbar_get_text(buf, sizeof buf);
+    diagf("ui: do_send text_len=%u head=%02x %02x %02x %02x",
+          (unsigned)strlen(buf), (unsigned char)buf[0],
+          (unsigned char)buf[1], (unsigned char)buf[2],
+          (unsigned char)buf[3]);
     len = strlen(buf);
     while (len > 0 &&
            (buf[len - 1] == '\n' || buf[len - 1] == '\r' ||
@@ -347,6 +352,7 @@ static void do_send_or_abort(void)
     if (session_autotitle(s_sess[s_cur], buf))
         tabs_refresh(s_cur);
     rc = app_send(s_app, s_sess[s_cur], buf);
+    diagf("ui: app_send rc=%d", rc);
     if (rc != 0) {
         status_set_text(LS(S_SEND_FAILED));
         status_invalidate(g_hwnd_main);

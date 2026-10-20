@@ -23,6 +23,7 @@
 
 #include "llm.h"
 #include "json.h"
+#include "diag.h"
 #include "http.h"
 
 static void set_err(char *err, int errcap, const char *msg)
@@ -959,6 +960,8 @@ int llm_send(const ModelCfg *m, const ProxyCfg *proxy, const Session *s,
     body = NULL;
     rc = -1;
 
+    diagf("llm: send enter api=%s base_url=%s model=%s verify=%d",
+          m->api, m->base_url, m->model_id, m->verify_tls);
     /* url -> host/port/path (+tls flag) */
     if (net_parse_url(m->base_url, host, (int)sizeof(host), &port,
                       urlpath, (int)sizeof(urlpath), &use_tls) != 0) {
@@ -966,6 +969,8 @@ int llm_send(const ModelCfg *m, const ProxyCfg *proxy, const Session *s,
         fire_error(&st, ev, ctx, err);
         return -1;
     }
+    diagf("llm: parsed host=%s port=%u tls=%d path=%s",
+          host, (unsigned)port, use_tls, urlpath);
     {
         const char *ap = llm_api_path(m);
 
@@ -1036,20 +1041,26 @@ int llm_send(const ModelCfg *m, const ProxyCfg *proxy, const Session *s,
     hdrs[nh] = NULL;
 
     /* connect (proxy CONNECT tunnel when m->use_proxy && proxy->host) */
+    diagf("llm: net_connect host=%s port=%u tls=%d proxy=%d",
+          host, (unsigned)port, use_tls, m->use_proxy);
     if (net_connect(&nc, host, port, NET_TIMEOUT_CONNECT_MS, proxy,
                     m->use_proxy, err, errcap) != 0) {
+        diagf("llm: net_connect FAILED err='%s'", err);
         fire_error(&st, ev, ctx, err);
         free(body);
         return -1;
     }
+    diagf("llm: net_connect ok");
     if (use_tls) {
         if (tls_connect(&tc, nc, host, NULL, m->verify_tls,
                         err, errcap) != 0) {
+            diagf("llm: tls_connect FAILED err='%s'", err);
             fire_error(&st, ev, ctx, err);
             net_close(nc);
             free(body);
             return -1;
         }
+        diagf("llm: tls_connect ok");
         io = tc;
         iosend = llm_tls_send;
         iorecv = llm_tls_recv;
@@ -1059,12 +1070,17 @@ int llm_send(const ModelCfg *m, const ProxyCfg *proxy, const Session *s,
         iorecv = llm_net_recv;
     }
 
+    diagf("llm: http POST %s body_len=%d stream=%d",
+          fullpath, body_len, m->stream);
     if (http_send_request2(io, iosend, iorecv, "POST", fullpath, hdrs,
                            body, body_len, &res, err, errcap) != 0) {
+        diagf("llm: http send FAILED err='%s'", err);
         fire_error(&st, ev, ctx, err);
         goto out;
     }
+    diagf("llm: http status=%d chunked=%d", res.status, res.chunked);
 
+    diagf("llm: reading body (stream=%d)", m->stream);
     if (res.status >= 200 && res.status < 300) {
         if (m->stream) {
             SseSink sk;

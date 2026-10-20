@@ -25,6 +25,7 @@
 
 #include "json.h"
 #include "history.h"
+#include "utf.h"
 
 static void set_err(char *err, int errcap, const char *msg)
 {
@@ -324,6 +325,12 @@ int history_load(Session *s, const char *path, char *err, int errcap)
     s->nm = t.nm;
     strcpy(s->id, t.id);
     strcpy(s->title, t.title);
+    /* Titles written by older builds can hold invalid UTF-8 (the
+       autotitle mid-sequence clamp bug): they would render as blank
+       tabs and block autotitle retry, so drop them here - the next
+       send fills a fresh one. */
+    if (s->title[0] != '\0' && !utf8_valid(s->title))
+        s->title[0] = '\0';
     return 0;
 
 oom:

@@ -164,6 +164,26 @@ int main(void)
     err[0] = '\0';
     CHECK(history_save(s3, DIR_BAD, err, sizeof err) == 0);
 
+    /* --- invalid-UTF-8 title (written by older autotitle bug): the
+       load still succeeds but the title is dropped so autotitle can
+       retry on the next send --- */
+    write_file(DIR_BAD "\\badt.json",
+               "{\"id\":\"badt\",\"title\":\"\xff\xfe broken\","
+               "\"msgs\":[{\"role\":\"user\","
+               "\"blocks\":[{\"k\":\"text\",\"t\":\"hi\"}]}]}");
+    strcpy(s3->title, "old title");
+    err[0] = '\0';
+    CHECK(history_load(s3, DIR_BAD "\\badt.json", err, sizeof err) == 0);
+    CHECK(s3->title[0] == '\0');
+    CHECK(s3->nm == 1 && strcmp(s3->m[0].b[0].text, "hi") == 0);
+    /* a well-formed CJK title survives untouched */
+    write_file(DIR_BAD "\\goodt.json",
+               "{\"id\":\"goodt\",\"title\":\"\xe4\xb8\xad\xe6\x96\x87\","
+               "\"msgs\":[]}");
+    err[0] = '\0';
+    CHECK(history_load(s3, DIR_BAD "\\goodt.json", err, sizeof err) == 0);
+    CHECK(strcmp(s3->title, "\xe4\xb8\xad\xe6\x96\x87") == 0);
+
     /* --- missing file is a hard error for history_load --- */
     err[0] = '\0';
     CHECK(history_load(s3, DIR_RW "\\no_such_id.json", err, sizeof err) != 0);
@@ -201,6 +221,10 @@ int main(void)
     remove(DIR_RW "\\abc123.json.tmp");
     remove(DIR_BAD "\\bad.json");
     remove(DIR_BAD "\\bad.json.tmp");
+    remove(DIR_BAD "\\badt.json");
+    remove(DIR_BAD "\\badt.json.tmp");
+    remove(DIR_BAD "\\goodt.json");
+    remove(DIR_BAD "\\goodt.json.tmp");
     remove(DIR_BAD "\\.json");
     remove(DIR_BAD "\\.json.tmp");
     remove(DIR_LST "\\1.json");
