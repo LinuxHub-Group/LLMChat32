@@ -91,18 +91,20 @@ static void to_acp(const char *utf8, char *out, int cap)
 /* metrics follow DrawText: line height = tm.tmHeight +                */
 /* tm.tmExternalLeading; CALCRECT returns left/top plus width/height.  */
 
-/* Windows 9x quirk: ExtTextOutW drops leading glyphs and renders tofu
- * boxes for others on the first few draws after a font enters a DC
- * (the font "warms up" only through repeated drawing). Drawing the same
- * text twice makes every draw self-healing; NT draws once. */
+/* Windows 9x: ExtTextOutW mis-renders text that was just measured with
+ * the same font (shifted/overlapping first draws that heal on repaint).
+ * TextOutW - the simpler, long-supported 9x Unicode entry - draws
+ * reliably. Layout already guarantees the text fits the rect, so the
+ * clip rect is unnecessary there. NT keeps the clipped ExtTextOutW. */
 static BOOL txtout(HDC hdc, int x, int y, UINT opts, const RECT *rc,
                    const wchar_t *w, int n)
 {
-    BOOL ok = ExtTextOutW(hdc, x, y, opts, rc, w, n, NULL);
-
-    if (g_win9x)
-        ExtTextOutW(hdc, x, y, opts, rc, w, n, NULL);
-    return ok;
+    if (g_win9x) {
+        (void)opts;
+        (void)rc;
+        return TextOutW(hdc, x, y, w, n);
+    }
+    return ExtTextOutW(hdc, x, y, opts, rc, w, n, NULL);
 }
 
 /* Width of the n-unit prefix of w under hdc's font, 0 on failure. */
