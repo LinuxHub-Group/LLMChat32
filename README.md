@@ -2,6 +2,10 @@
 
 Windows 98 兼容的 LLM 聊天客户端：Win32 + 自绘 GDI 界面，C89 编写，Open Watcom 2.0 构建，wolfSSL 静态链接（TLS 1.3 实测握手通过）。
 
+![在 Windows 98 第二版上运行的 LLMChat32（真机截图）](docs/screenshot-win98.png)
+
+**无需任何额外的代理程序**：程序内置 wolfSSL，TLS 1.2/1.3 握手直接在 Windows 98 上完成，可直连各家 LLM API。配置中的「代理」是可选的 HTTP CONNECT 设置，仅在你需要走公司代理或 Clash 等代理时才需要填写——不填就是纯直连。
+
 ## 工具链来源（重要）
 
 本项目的构建基于 **Open Watcom 2.0 官方每日构建的可移植版**：
