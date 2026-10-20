@@ -122,6 +122,9 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
     int availw = rc->right - rc->left;
     int lh = ui_line_h(hdc);
     int dw;
+    int x;
+    int y;
+    static int s_probe_left = 4;
 
     if ((fmt & DT_END_ELLIPSIS) && availw >= 0
         && ui_seg_w(hdc, w, n) > availw) {
@@ -147,14 +150,36 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
         n = lo + 1;
     }
     dw = ui_seg_w(hdc, w, n);
+    if (s_probe_left > 0 && availw < 400) {
+        /* first few small (tab/status/label) single-line draws only:
+           captures rect width, measured width and the raw ExtTextOutW
+           result + LastError for 9x font/clip forensics */
+        BOOL ok;
+
+        s_probe_left--;
+        SetLastError(0);
+        if (fmt & DT_CENTER)
+            x = rc->left + (availw - dw) / 2;
+        else if (fmt & DT_RIGHT)
+            x = rc->right - dw;
+        if (fmt & DT_VCENTER)
+            y = rc->top + (rc->bottom - rc->top - lh) / 2;
+        else if (fmt & DT_BOTTOM)
+            y = rc->bottom - lh;
+        ok = ExtTextOutW(hdc, x, y, ETO_CLIPPED, rc, w, n, NULL);
+        diagf("txt: n=%d dw=%d rcw=%d ret=%d err=%lu first=%04x",
+              n, dw, availw, (int)ok, (unsigned long)GetLastError(),
+              n > 0 ? (unsigned)w[0] : 0);
+        return;
+    }
     if (fmt & DT_CALCRECT) {
         rc->right = rc->left + dw;
         rc->bottom = rc->top + lh;
         return;
     }
     {
-        int x = rc->left;
-        int y = rc->top;
+        x = rc->left;
+        y = rc->top;
 
         if (fmt & DT_CENTER)
             x = rc->left + (availw - dw) / 2;
