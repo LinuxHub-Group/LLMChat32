@@ -593,22 +593,58 @@ static void do_copy_msg(int msg_idx)
             w[wlen] = L'\0';
             GlobalUnlock(hg);
             {
+                /* On 9x also build the CF_TEXT (CP_ACP) form: 9x apps
+                 * like Notepad read only CF_TEXT, and 9x never
+                 * synthesizes it from CF_UNICODETEXT the way NT does.
+                 * GBK bytes on zh-CN 98 is exactly what they expect. On
+                 * NT the CF_TEXT conversion is skipped entirely. */
+                HGLOBAL ha = NULL;
                 int tries;
 
+                if (g_win9x) {
+                    int an = WideCharToMultiByte(CP_ACP, 0, w, wlen,
+                                                 NULL, 0, NULL, NULL);
+
+                    ha = GlobalAlloc(GMEM_MOVEABLE, (size_t)an + 1);
+                    if (ha != NULL) {
+                        char *ab = (char *)GlobalLock(ha);
+
+                        if (ab != NULL) {
+                            WideCharToMultiByte(CP_ACP, 0, w, wlen,
+                                                ab, an, NULL, NULL);
+                            ab[an] = '\0';
+                            GlobalUnlock(ha);
+                        } else {
+                            GlobalFree(ha);
+                            ha = NULL;
+                        }
+                    }
+                }
                 for (tries = 0; tries < 5 && !ok; tries++) {
                     if (OpenClipboard(g_hwnd_main)) {
                         EmptyClipboard();
-                        ok = SetClipboardData(CF_UNICODETEXT, hg) != NULL;
+                        if (SetClipboardData(CF_UNICODETEXT, hg)) {
+                            ok = 1;
+                            hg = NULL;  /* clipboard owns it now */
+                            if (ha != NULL) {
+                                if (SetClipboardData(CF_TEXT, ha))
+                                    ha = NULL;  /* clipboard owns it */
+                                else
+                                    GlobalFree(ha);
+                            }
+                        }
                         CloseClipboard();
                         break;
                     }
                     Sleep(60);  /* clipboard watchers (VM tools etc.)
                                    transiently hold it open */
                 }
+                if (hg != NULL)
+                    GlobalFree(hg);
+                if (ha != NULL)
+                    GlobalFree(ha);
             }
             diagf("copy: clipboard ok=%d", ok);
-            if (!ok)
-                GlobalFree(hg);
         } else {
             GlobalFree(hg);
         }
