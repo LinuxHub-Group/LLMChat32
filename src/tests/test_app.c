@@ -15,6 +15,9 @@
  *   - disk full: with a read-only history dir, app_send surfaces the
  *     save failure via on_error (no on_done) and the in-memory Session
  *     is untouched; app_recall fails and leaves memory untouched.
+ *   - failed send: a transport that reports on_error immediately leaves
+ *     the Session (and the saved history) without the empty assistant
+ *     shell appended at send start - only the user message remains.
  *
  * Prints one "ok ..." line per check and a final "PASS"/"FAIL" line.
  * Exit code: 0 on PASS, 1 on FAIL.
@@ -193,6 +196,25 @@ static int canned_send(const ModelCfg *m, const ProxyCfg *px, const Session *s,
     if (ev->on_done)
         ev->on_done(ctx, 0);
     return 0;
+}
+
+/* Transport that fails immediately (network unreachable, bad key, ...):
+   no fragments, on_error right away, nonzero rc. */
+static int failing_send(const ModelCfg *m, const ProxyCfg *px,
+                        const Session *s, const LlmEvents *ev, void *ctx,
+                        const volatile int *cancel, char *err, int errcap)
+{
+    (void)m;
+    (void)px;
+    (void)s;
+    (void)cancel;
+    if (err != NULL && errcap > 0) {
+        strncpy(err, "request failed: boom", (size_t)errcap - 1);
+        err[errcap - 1] = '\0';
+    }
+    if (ev->on_error)
+        ev->on_error(ctx, "boom");
+    return -1;
 }
 
 /* Pump until the current send is fully drained. */
@@ -444,6 +466,31 @@ int main(void)
     session_free(s2);
     session_free(s);
     remove(DIR_RW "\\app7.json");
+
+    /* === scenario 6: failed send drops the empty assistant shell === */
+    app_set_transport_hook(a, failing_send);
+    s = session_new("app8");
+    sink_reset();
+    CHECK(app_send(a, s, "hello") == 0);
+    pump_until_idle(a);
+    CHECK(app_busy(a) == 0);
+    CHECK(count_type(EV_ERROR) == 1);
+    CHECK(count_type(EV_DONE) == 0);
+    CHECK(g_ev[g_nev - 2].type == EV_ERROR);
+    /* the shell appended at send start is gone: only the user message */
+    CHECK(s->nm == 1);
+    CHECK(s->m[0].role == ROLE_USER);
+    CHECK(s->m[0].nb == 1 && strcmp(s->m[0].b[0].text, "hello") == 0);
+    /* the saved history must not contain the empty assistant either */
+    s2 = session_new("app8");
+    err[0] = '\0';
+    CHECK(history_load(s2, DIR_RW "\\app8.json", err, sizeof err) == 0);
+    CHECK(s2->nm == 1);
+    CHECK(s2->m[0].role == ROLE_USER);
+    session_free(s2);
+    session_free(s);
+    remove(DIR_RW "\\app8.json");
+    app_set_transport_hook(a, canned_send);
 
     /* app_free with a still-pending stream must not crash or leak */
     s = session_new("app6");

@@ -317,7 +317,10 @@ static void jb_msg(JB *b, const char *role, const char *content)
  * system message comes first (system is never truncated); the kept
  * user/assistant window then starts at first_msg_idx. Anthropic passes
  * with_system=0 because its system text travels in the top-level field.
- * Returns 0, or -1 on OOM (partial JSON stays in b, caller aborts).
+ * Messages whose serializable content is empty (zero blocks, empty text,
+ * or think-only) are omitted: APIs reject empty messages, and such
+ * shells only appear after failed sends. Returns 0, or -1 on OOM
+ * (partial JSON stays in b, caller aborts).
  */
 static int jb_messages(JB *b, const char *arrkey, const Session *s,
                        int first_msg_idx, int with_system)
@@ -338,6 +341,15 @@ static int jb_messages(JB *b, const char *arrkey, const Session *s,
         content = msg_content(msg);
         if (!content)
             return -1;
+        if (content[0] == '\0') {
+            /* nothing serializable: an empty assistant shell left by a
+               failed send, or a think-only message (thinking is never
+               sent). APIs reject empty-role messages, so skip it here;
+               the message itself stays in the Session/history for the
+               思考过程 viewer. */
+            free(content);
+            continue;
+        }
         jb_msg(b, role_name(msg->role), content);
         free(content);
     }

@@ -57,14 +57,14 @@
 #define LST_X      8                /* model list, left column          */
 #define LST_Y      8
 #define LST_W      140
-#define LST_H      252
-
+#define LST_H      232              /* ends 240; the 2x2 grid + status  */
+                                    /* line must fit below it           */
 #define LB_X       8                /* 2x2 button grid under the list   */
 #define LB_W       67
 #define LB_H       24
 #define LB_GAP     6
-#define LB_Y1      (LST_Y + LST_H + 8)
-#define LB_Y2      (LB_Y1 + LB_H + 4)
+#define LB_Y1      (LST_Y + LST_H + 8)      /* row 1: 248..272          */
+#define LB_Y2      (LB_Y1 + LB_H + 6)       /* row 2: 278..302          */
 
 #define R_X        (LST_X + LST_W + 8)      /* right column             */
 #define R_RIGHT    (DLG_CW - 8)
@@ -77,8 +77,8 @@
 #define CTL_H      22
 
 #define CHK_W      112              /* one checkbox                     */
-#define ST_Y       306              /* status line above the buttons    */
-#define BTN_Y      330
+#define ST_Y       308              /* status line: below the 2x2 grid  */
+#define BTN_Y      334              /* (row 2 ends 302; OK row 334..360) */
 #define BTN_H      26
 #define BTN_W      64
 
@@ -207,6 +207,7 @@ typedef struct {
     HWND ck_uproxy, ck_stream, ck_reason, ck_vtls;
     HWND cb_eff, ed_budget, ed_maxtok, ed_maxctx, ed_temp;
     HWND st_status, btn_ok, btn_cancel;
+    HWND st_label[12];           /* row labels, indexed by row number   */
 } CfgDlg;
 
 /* ------------------------------------------------------------------ */
@@ -223,11 +224,15 @@ static HWND mkctl(const char *cls, DWORD style, int x, int y, int w, int h,
 
 /* Hand every child the app font (WM_SETFONT), exactly like
  * inputbar_create / dlg_view do - without it CJK text renders as
- * codepage garbage in the stock System font. */
+ * codepage garbage in the stock System font. The row labels are
+ * created inline in WM_CREATE, so their handles live in st_label[] and
+ * are covered here too: one helper, no child misses the font. */
 static void dlg_set_fonts(CfgDlg *d)
 {
     static const int members[] = {
         offsetof(CfgDlg, list),
+        offsetof(CfgDlg, btn_add), offsetof(CfgDlg, btn_del),
+        offsetof(CfgDlg, btn_up), offsetof(CfgDlg, btn_down),
         offsetof(CfgDlg, ed_name), offsetof(CfgDlg, cb_api),
         offsetof(CfgDlg, ed_base), offsetof(CfgDlg, ed_key),
         offsetof(CfgDlg, ed_mid),
@@ -250,6 +255,9 @@ static void dlg_set_fonts(CfgDlg *d)
         if (h != NULL)
             SendMessage(h, WM_SETFONT, (WPARAM)f, TRUE);
     }
+    for (i = 0; i < sizeof d->st_label / sizeof d->st_label[0]; i++)
+        if (d->st_label[i] != NULL)
+            SendMessage(d->st_label[i], WM_SETFONT, (WPARAM)f, TRUE);
 }
 
 /* GetWindowTextA yields CP_ACP bytes (the OS owns the control content);
@@ -719,13 +727,15 @@ static LRESULT CALLBACK cfg_wndproc(HWND hwnd, UINT msg, WPARAM wp,
                             IDC_DOWN, hwnd);
         ui_set_a(d->btn_down, LS(S_CFG_DOWN));
 
-        /* labelled field rows; labels are right-aligned statics */
+        /* labelled field rows; labels are right-aligned statics whose
+         * handles land in st_label[] so dlg_set_fonts covers them */
 #define LABEL(sid, n) \
-        ui_set_a(mkctl("STATIC", \
-                       WS_CHILD | WS_VISIBLE | SS_RIGHT | SS_CENTERIMAGE \
-                       | SS_NOPREFIX, \
-                       R_X, ROW_Y(n), LBL_W - 6, CTL_H, 100 + (n), hwnd), \
-                 LS(sid))
+        ui_set_a( \
+            (d->st_label[n] = mkctl("STATIC", \
+                WS_CHILD | WS_VISIBLE | SS_RIGHT | SS_CENTERIMAGE \
+                | SS_NOPREFIX, \
+                R_X, ROW_Y(n), LBL_W - 6, CTL_H, 100 + (n), hwnd)), \
+            LS(sid))
         LABEL(S_CFG_NAME, 0);
         LABEL(S_CFG_API, 1);
         LABEL(S_CFG_BASEURL, 2);

@@ -12,11 +12,15 @@
  * block per kind change, otherwise the fragment is concatenated onto the
  * last same-kind block), terminal nodes save the Session to the history
  * dir (tmp+rename via history_save) and then fire exactly one of
- * on_done/on_error followed by on_busy(0). A failed save fires on_error
- * with the disk message and leaves the in-memory Session untouched. If
- * the worker cannot queue its terminal node at all (allocation failure),
- * it sets term_lost and app_pump() synthesizes the terminal event as
- * on_error("out of memory"), so app_busy() can never wedge.
+ * on_done/on_error followed by on_busy(0). An error finish first drops
+ * the assistant message of the send when it still has zero blocks (the
+ * shell appended at send start), so neither the saved history nor the
+ * next request ever carries an empty assistant message. A failed save
+ * fires on_error with the disk message and leaves the in-memory Session
+ * untouched (an empty shell is dropped even then). If the worker cannot
+ * queue its terminal node at all (allocation failure), it sets term_lost
+ * and app_pump() synthesizes the terminal event as on_error("out of
+ * memory"), so app_busy() can never wedge.
  *
  * app_free() cancels and joins a still-running worker thread
  * (WaitForSingleObject on the _beginthread handle, then CloseHandle) and
@@ -252,6 +256,17 @@ static int block_append(Block *b, const char *frag, int len)
 
 /* --- pump ------------------------------------------------------------------ */
 
+/* Drop the assistant message of the in-flight send when it has no blocks
+   (an error finish leaves the shell appended at send start empty). The
+   message is the last one in the Session, so shrinking to its index
+   removes exactly the shell. Content-bearing messages are kept as is. */
+static void drop_empty_shell(App *a)
+{
+    if (a->sess != NULL && a->msg_idx >= 0 && a->msg_idx < a->sess->nm
+        && a->sess->m[a->msg_idx].nb == 0)
+        session_truncate(a->sess, a->msg_idx);
+}
+
 static void pump_frag(App *a, QNode *n)
 {
     Msg *m;
@@ -283,6 +298,7 @@ static void pump_term(App *a, QNode *n)
 {
     char serr[160];
     int save_ok;
+    int node_err;
 
     /* join the worker before touching the Session on this thread */
     if (a->thandle != 0) {
@@ -291,10 +307,23 @@ static void pump_term(App *a, QNode *n)
         a->thandle = 0;
     }
 
+    /* An error finish leaves the assistant message appended at send
+       start empty; history would persist the shell and the next request
+       would carry it. Drop the shell BEFORE saving so neither memory
+       nor disk keeps it (abort-finish QDONE=2 is not an error: partial
+       content means blocks exist and nothing is dropped). */
+    node_err = (a->oom || n == NULL
+                || (n != NULL && n->type == QERROR));
+    if (node_err)
+        drop_empty_shell(a);
+
     serr[0] = '\0';
     save_ok = (a->sess != NULL &&
                history_save(a->sess, a->cfg.g.history_dir,
                             serr, (int)sizeof(serr)) == 0);
+
+    if (!save_ok)
+        drop_empty_shell(a);    /* a failed save is an error finish too */
 
     if (!save_ok) {
         /* disk failure: report it, keep the in-memory Session as is */

@@ -33,6 +33,10 @@
  *      full endpoint URL, a "/prefix", "/prefix/v1", trailing-slash and
  *      all-slash variants) joined with the api endpoint: no doubling, no
  *      missing version segment.
+ *   8: empty-skip - a message whose serializable content would be empty
+ *      (zero blocks, or only think blocks) is omitted from the outgoing
+ *      messages array of every protocol; the surrounding real messages
+ *      keep their order.
  *
  * Prints one "ok ..." line per check and a final "PASS"/"FAIL" line.
  * Exit code: 0 on PASS, 1 on FAIL.
@@ -130,6 +134,7 @@ int main(void)
     char err[256];
     Session *s;
     ModelCfg m;
+    Msg *mm;
     JVal *root;
     JVal *v;
     JVal *msgs;
@@ -485,6 +490,65 @@ int main(void)
                        cases[i].api);
             }
         }
+    }
+
+    /* --- 8: empty messages are skipped ------------------------------ */
+    /*
+     * user "hi" -> assistant (empty shell from a failed send) ->
+     * user "again" -> assistant (think-only: serializes empty).
+     * Every protocol must send only the two real user messages.
+     */
+    session_free(s);
+    s = session_new("t10e");
+    mm = session_add_msg(s, ROLE_USER);
+    msg_add_block(mm, BLOCK_TEXT, "hi");
+    session_add_msg(s, ROLE_ASSIST);          /* zero blocks */
+    mm = session_add_msg(s, ROLE_USER);
+    msg_add_block(mm, BLOCK_TEXT, "again");
+    mm = session_add_msg(s, ROLE_ASSIST);
+    msg_add_block(mm, BLOCK_THINK, "hmm only thinking");
+
+    make_model(&m, "anthropic");
+    err[0] = '\0';
+    root = build_parse(&m, s, buf, (int)sizeof(buf), err, (int)sizeof(err));
+    CHECK(root != NULL);
+    if (root != NULL) {
+        msgs = json_obj_get(root, "messages");
+        CHECK(json_type(msgs) == JARR);
+        CHECK(json_arr_len(msgs) == 2);
+        e = json_arr_get(msgs, 0);
+        CHECK(strcmp(json_str(json_obj_get(e, "role")), "user") == 0);
+        CHECK(strcmp(json_str(json_obj_get(e, "content")), "hi") == 0);
+        e = json_arr_get(msgs, 1);
+        CHECK(strcmp(json_str(json_obj_get(e, "role")), "user") == 0);
+        CHECK(strcmp(json_str(json_obj_get(e, "content")), "again") == 0);
+        json_free(root);
+    }
+
+    make_model(&m, "chat");
+    root = build_parse(&m, s, buf, (int)sizeof(buf), err, (int)sizeof(err));
+    CHECK(root != NULL);
+    if (root != NULL) {
+        msgs = json_obj_get(root, "messages");
+        CHECK(json_type(msgs) == JARR);
+        CHECK(json_arr_len(msgs) == 2);
+        e = json_arr_get(msgs, 0);
+        CHECK(strcmp(json_str(json_obj_get(e, "role")), "user") == 0);
+        e = json_arr_get(msgs, 1);
+        CHECK(strcmp(json_str(json_obj_get(e, "content")), "again") == 0);
+        json_free(root);
+    }
+
+    make_model(&m, "responses");
+    root = build_parse(&m, s, buf, (int)sizeof(buf), err, (int)sizeof(err));
+    CHECK(root != NULL);
+    if (root != NULL) {
+        msgs = json_obj_get(root, "input");
+        CHECK(json_type(msgs) == JARR);
+        CHECK(json_arr_len(msgs) == 2);
+        e = json_arr_get(msgs, 1);
+        CHECK(strcmp(json_str(json_obj_get(e, "content")), "again") == 0);
+        json_free(root);
     }
 
     session_free(s);
