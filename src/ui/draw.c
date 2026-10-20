@@ -120,12 +120,17 @@ HFONT ui_make_font(int point_size)
     if (g_win9x) {
         /* CreateFontW is a stub on 9x; the CP_ACP outlet turns the
          * configured UTF-8 face name into the bytes CreateFontA wants
-         * (ASCII names pass through unchanged) */
+         * (ASCII names pass through unchanged). DEFAULT_CHARSET font
+         * mapping is unreliable on 9x - it can resolve a CJK-capable
+         * face to a font without the glyphs (observed as deterministic
+         * tofu on the tab strip) - so pin GB2312_CHARSET explicitly,
+         * the classic Win9x CJK rule. NT keeps DEFAULT_CHARSET, where
+         * font linking handles glyph fallback. */
         char face[64];
 
         ui_acp_a(face, (int)sizeof face, name);
         return CreateFontA(h, 0, 0, 0, FW_NORMAL, 0, 0, 0,
-                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                           GB2312_CHARSET, OUT_DEFAULT_PRECIS,
                            CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
                            DEFAULT_PITCH | FF_DONTCARE, face);
     }
