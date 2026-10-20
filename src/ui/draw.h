@@ -49,12 +49,18 @@ void draw_bubble(HDC memdc, const RECT *rc, int left_side, COLORREF fill);
 void draw_blend_white(const unsigned char *rgba, int npixels, int opacity,
                       unsigned char *rgb);
 
-/* Cached UI font: CreateFontW(-g_cfg.g.font_size, DEFAULT_CHARSET) with
- * the face name from g_cfg.g.font_name (fallback "MS Shell Dlg"), both
- * converted/validated at runtime - no L"" literals. The returned HFONT
- * is shared and must NOT be deleted by the caller; it is recreated when
- * the config values change. */
+/* Cached UI font (see ui_font below). */
 HFONT ui_font(void);
+
+/* Uncached font creation at point_size (a positive size is negated into
+ * a pixel cell height, like the historic CreateFontW call sites). NT:
+ * CreateFontW with the configured face name (DEFAULT_CHARSET keeps 中文
+ * resolving on zh systems). 9x: CreateFontA on the CP_ACP conversion of
+ * the face name (CreateFontW is a stub there) - configured names are
+ * ASCII ("SimSun" default), so both paths pick the same face. The caller
+ * owns the returned HFONT (may be NULL on GDI failure - SelectObject
+ * sites must guard). */
+HFONT ui_make_font(int point_size);
 
 #ifdef __cplusplus
 }

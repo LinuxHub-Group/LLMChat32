@@ -11,13 +11,16 @@
  * Encoding discipline: every string handed to an A-API goes through the
  * ui_* outlets (ui_set_a/ui_acp_a). The one exception in shape - not in
  * rule - is the long think text: it is converted whole with
- * utf8_to_utf16 and set via SetWindowTextW through the ui_set_ww
- * outlet, exactly the outlet pattern ui.h documents for long texts.
- * That edit is created with CreateWindowExW as a UNICODE control (same
- * fix as the inputbar): an ANSI edit round-trips SetWindowTextW through
- * the ACP and mangles CJK under ACP 65001; a Unicode edit stores UTF-16
- * natively. The button/title stay ANSI - short strings the app sets
- * itself render fine on any ACP.
+ * utf8_to_utf16 and set through the ui_set_ww outlet, exactly the
+ * outlet pattern ui.h documents for long texts (on 9x that outlet goes
+ * to SetWindowTextA through the CP_ACP conversion, since SetWindowTextW
+ * is a stub there). The think edit is created with CreateWindowExW as a
+ * UNICODE control on NT (same fix as the inputbar: an ANSI edit
+ * round-trips SetWindowTextW through the ACP and mangles CJK under ACP
+ * 65001; a Unicode edit stores UTF-16 natively); on Windows 9x the W
+ * creation API is a stub, so the edit is the ANSI control and the text
+ * reaches it already CP_ACP-encoded via ui_set_ww. The button/title
+ * stay ANSI - short strings the app sets itself render fine on any ACP.
  *
  * The image dialog paints the fetched/decoded image itself: the RGBA
  * buffer is alpha-premultiplied over white into a 32-bit bottom-up DIB
@@ -219,11 +222,23 @@ static LRESULT CALLBACK text_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         d = (TextDlg *)cs->lpCreateParams;
         SetWindowLong(hwnd, GWL_USERDATA, (LONG)d);
         ui_set_a(hwnd, d->title);
-        d->edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
-                                  WS_CHILD | WS_VISIBLE | ES_MULTILINE
-                                  | ES_READONLY | WS_VSCROLL
-                                  | ES_AUTOVSCROLL,
-                                  0, 0, 0, 0, hwnd, NULL, DLG_INST, NULL);
+        /* NT: a Unicode edit stores the long think text as UTF-16.
+         * 9x: CreateWindowExW is a stub, use the ANSI control (ui_set_ww
+         * feeds it CP_ACP bytes there). */
+        if (g_win9x)
+            d->edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", NULL,
+                                      WS_CHILD | WS_VISIBLE | ES_MULTILINE
+                                      | ES_READONLY | WS_VSCROLL
+                                      | ES_AUTOVSCROLL,
+                                      0, 0, 0, 0, hwnd, NULL, DLG_INST,
+                                      NULL);
+        else
+            d->edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
+                                      WS_CHILD | WS_VISIBLE | ES_MULTILINE
+                                      | ES_READONLY | WS_VSCROLL
+                                      | ES_AUTOVSCROLL,
+                                      0, 0, 0, 0, hwnd, NULL, DLG_INST,
+                                      NULL);
         d->btn_ok = CreateWindowExA(0, "BUTTON", NULL,
                                     WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON
                                     | BS_DEFPUSHBUTTON,

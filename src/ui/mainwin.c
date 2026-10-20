@@ -136,11 +136,16 @@ static Session *session_add_blank(void)
     return s;
 }
 
-/* 1 when the title was filled from the first line of text. */
+/* 1 when the title was filled from the first line of text. The take is
+ * at most 20 code points AND at most sizeof(title)-1 bytes, with the
+ * byte cap enforced per character: the stored title is always whole
+ * UTF-8 (a dangling lead byte from a mid-sequence byte clamp fails
+ * every utf8_to_utf16 outlet downstream and the tab draws nothing). */
 static int session_autotitle(Session *s, const char *text)
 {
     int i = 0;
     int n = 0;
+    int cut = 0;
 
     if (s->title[0] != '\0')
         return 0;
@@ -150,21 +155,16 @@ static int session_autotitle(Session *s, const char *text)
 
         if (k <= 0)
             break;
+        if (i + k > (int)sizeof s->title - 1)
+            break;              /* next character would not fit whole */
         i += k;
         n++;
+        cut = i;                /* last whole-character boundary */
     }
-    if (i == 0)
-        return 0;
-    if (i > (int)sizeof s->title - 1)
-        i = (int)sizeof s->title - 1;
-    /* the byte clamp above can split a UTF-8 sequence: step back over
-     * continuation bytes (10xxxxxx) to the last character boundary */
-    while (i > 0 && (((unsigned char)text[i - 1]) & 0xC0) == 0x80)
-        i--;
-    if (i == 0)
-        return 0;   /* all-emoji prefix: leave empty, retried next send */
-    memcpy(s->title, text, (size_t)i);
-    s->title[i] = '\0';
+    if (cut == 0)
+        return 0;   /* nothing fits: leave empty, retried next send */
+    memcpy(s->title, text, (size_t)cut);
+    s->title[cut] = '\0';
     return 1;
 }
 
@@ -746,6 +746,13 @@ HWND ui_mainwin_init(HINSTANCE inst, int ncmdshow, Config *cfg)
     } else {
         tabs_refresh(-1);
         chatview_set_session(NULL);
+    }
+    /* a failed inputbar (child creation failed, e.g. GDI exhaustion)
+     * leaves the rest of the app usable - say so on the status strip
+     * (show_session above reset the strip, so this comes last) */
+    if (s_input == NULL) {
+        status_set_text(LS(S_NO_INPUTBAR));
+        status_invalidate(hwnd);
     }
 
     SetTimer(hwnd, TIMER_PUMP_ID, TIMER_PUMP_MS, NULL);

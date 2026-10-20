@@ -4,9 +4,10 @@
  * Layout model: one full layout pass per repaint. The pass walks the
  * session top-down; for each message it joins the BLOCK_TEXT pieces
  * (no separator - Task 17 may append one block per streaming fragment,
- * which must flow as continuous text) and measures the result with
- * DrawTextW DT_CALCRECT (DT_WORDBREAK | DT_LEFT) at a maximum bubble
- * width of 72% of the client width, then records per-message geometry
+ * which must flow as continuous text) and measures the result through
+ * the ui_drawtext_ww outlet in DT_CALCRECT mode (DT_WORDBREAK | DT_LEFT)
+ * at a maximum bubble width of 72% of the client width, then records
+ * per-message geometry
  * (s_items) plus a flat list of link rects (s_links: think link and one
  * per image block, both for Task 18 hit-testing). Consecutive messages
  * stack with CV_GAP px gaps inside an 8px margin.
@@ -547,9 +548,12 @@ static void cv_ensure_layout(void)
     hdc = GetDC(s_hwnd);
     if (hdc == NULL)
         return;
-    of = SelectObject(hdc, ui_font());
+    of = NULL;
+    if (ui_font() != NULL)
+        of = SelectObject(hdc, ui_font());
     layout_build(hdc);
-    SelectObject(hdc, of);
+    if (of != NULL)
+        SelectObject(hdc, of);
     ReleaseDC(s_hwnd, hdc);
 }
 
@@ -693,14 +697,17 @@ static void paint_view(HDC m, int cw, int ch)
 
     /* ui_font must be selected before layout_build: measuring and
      * drawing must use the same font or the wrap metrics disagree */
-    old_font = SelectObject(m, ui_font());
+    old_font = NULL;
+    if (ui_font() != NULL)
+        old_font = SelectObject(m, ui_font());
     SetBkMode(m, TRANSPARENT);
     prev = SetTextColor(m, GetSysColor(COLOR_WINDOWTEXT));
 
     if (!s_layout_valid)
         layout_build(m);
     if (s_nitems <= 0) {
-        SelectObject(m, old_font);
+        if (old_font != NULL)
+            SelectObject(m, old_font);
         return;
     }
 
@@ -751,7 +758,8 @@ static void paint_view(HDC m, int cw, int ch)
     }
 
     SetTextColor(m, prev);
-    SelectObject(m, old_font);
+    if (old_font != NULL)
+        SelectObject(m, old_font);
 }
 
 static void paint(HDC hdc, const RECT *client)

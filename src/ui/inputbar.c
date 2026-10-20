@@ -9,21 +9,20 @@
  * only lays the children out on WM_SIZE and forwards their WM_COMMAND
  * notifications upward.
  *
- * The edit is created with CreateWindowExW as a UNICODE control: under
- * ACP 65001 ("Beta: UTF-8") an ANSI edit mangles IME input into '?'
- * before the app ever reads it, and on other ACPs CJK text round-trips
- * lossy through the ANSI code page. A Unicode edit stores UTF-16
- * directly, so IME composition lands intact. The subclass therefore
- * uses the W family too (SetWindowLongW/CallWindowProcW) - an ANSI
- * subclass on a Unicode window would make the system convert every
- * message back through the ACP. The combo/button stay ANSI: they only
- * ever display text the app sets itself through the ui_* outlets.
+ * The edit is created as a UNICODE control on NT (CreateWindowExW) and
+ * as an ANSI control on Windows 9x (CreateWindowExA - CreateWindowExW is
+ * a stub there; the Unicode subclass APIs GetWindowLongW/SetWindowLongW/
+ * CallWindowProcW are stubs too, so the 9x branch subclasses through the
+ * A family). Under ACP 65001 ("Beta: UTF-8") an ANSI edit mangles IME
+ * input into '?' before the app ever reads it, and on other ACPs CJK
+ * text round-trips lossy through the ANSI code page; on 9x that is the
+ * best available transport and CP_ACP round-trips zh-CN (GBK) losslessly.
  *
  * Ctrl+Enter eats BOTH WM_KEYDOWN and WM_CHAR: TranslateMessage in the
  * main loop turns the VK_RETURN keydown into a WM_CHAR '\r' even when
  * the subclass swallows the keydown, so eating only one would still let
- * a newline through. In the W subclass WM_CHAR wParam is UTF-16; the
- * 0x0D test is unchanged.
+ * a newline through. In the W subclass WM_CHAR wParam is UTF-16; in the
+ * A subclass it is the ACP lead byte - the 0x0D test is unchanged.
  *
  * All functions are C89. Strings handed to controls are narrow UTF-8
  * converted through the ui_* outlets; text read back is converted to
@@ -63,6 +62,10 @@ static LRESULT CALLBACK edit_wndproc(HWND hwnd, UINT msg, WPARAM wp,
                         (LPARAM)GetDlgItem(GetParent(hwnd), IDIB_SEND));
         return 0;               /* swallow; no newline, no beep */
     }
+    /* the stored original proc matches the edit's charset: W on NT, A
+     * on 9x (CallWindowProcW would be a stub there) */
+    if (g_win9x)
+        return CallWindowProcA(s_edit_old, hwnd, msg, wp, lp);
     return CallWindowProcW(s_edit_old, hwnd, msg, wp, lp);
 }
 
@@ -131,11 +134,23 @@ HWND inputbar_create(HWND parent)
     if (s_bar == NULL)
         return NULL;
 
-    s_edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
-                             WS_CHILD | WS_VISIBLE | ES_MULTILINE |
-                             ES_WANTRETURN | WS_VSCROLL | ES_AUTOVSCROLL,
-                             0, 0, 0, 0, s_bar, (HMENU)IDIB_EDIT, inst,
-                             NULL);
+    /* NT: a Unicode edit keeps IME composition intact. 9x: the W class
+     * creation API is a stub, so fall back to the ANSI EDIT (zh-CN ACP
+     * round-trips CJK losslessly). */
+    if (g_win9x)
+        s_edit = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", NULL,
+                                 WS_CHILD | WS_VISIBLE | ES_MULTILINE |
+                                 ES_WANTRETURN | WS_VSCROLL
+                                 | ES_AUTOVSCROLL,
+                                 0, 0, 0, 0, s_bar, (HMENU)IDIB_EDIT, inst,
+                                 NULL);
+    else
+        s_edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", NULL,
+                                 WS_CHILD | WS_VISIBLE | ES_MULTILINE |
+                                 ES_WANTRETURN | WS_VSCROLL
+                                 | ES_AUTOVSCROLL,
+                                 0, 0, 0, 0, s_bar, (HMENU)IDIB_EDIT, inst,
+                                 NULL);
     s_combo = CreateWindowExA(0, "COMBOBOX", NULL,
                               WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST |
                               WS_VSCROLL,
@@ -146,18 +161,32 @@ HWND inputbar_create(HWND parent)
                             BS_CENTER,
                             0, 0, 0, 0, s_bar, (HMENU)IDIB_SEND, inst,
                             NULL);
-    if (s_edit == NULL || s_combo == NULL || s_btn == NULL)
+    if (s_edit == NULL || s_combo == NULL || s_btn == NULL) {
+        /* never leave a 0x0 zombie strip (the old Symptom B): tear the
+         * whole bar down; mainwin degrades without an input bar */
+        DestroyWindow(s_bar);
+        s_bar = NULL;
+        s_edit = NULL;
+        s_combo = NULL;
+        s_btn = NULL;
+        s_edit_old = NULL;
         return NULL;
+    }
 
     font = ui_font();
     if (font != NULL) {
-        SendMessageW(s_edit, WM_SETFONT, (WPARAM)font, TRUE);
+        SendMessage(s_edit, WM_SETFONT, (WPARAM)font, TRUE);
         SendMessage(s_combo, WM_SETFONT, (WPARAM)font, TRUE);
         SendMessage(s_btn, WM_SETFONT, (WPARAM)font, TRUE);
     }
 
-    s_edit_old = (WNDPROC)GetWindowLongW(s_edit, GWL_WNDPROC);
-    SetWindowLongW(s_edit, GWL_WNDPROC, (LONG)edit_wndproc);
+    if (g_win9x) {
+        s_edit_old = (WNDPROC)GetWindowLongA(s_edit, GWL_WNDPROC);
+        SetWindowLongA(s_edit, GWL_WNDPROC, (LONG)edit_wndproc);
+    } else {
+        s_edit_old = (WNDPROC)GetWindowLongW(s_edit, GWL_WNDPROC);
+        SetWindowLongW(s_edit, GWL_WNDPROC, (LONG)edit_wndproc);
+    }
 
     ui_set_a(s_btn, LS(S_BTN_SEND));
     layout_children(s_bar);
@@ -191,20 +220,40 @@ int inputbar_selected_model(void)
 
 void inputbar_get_text(char *buf, int cap)
 {
-    wchar_t w[INPUTBAR_TEXT_MAX];
-    int wlen;
-
     if (buf == NULL || cap < 1)
         return;
     buf[0] = '\0';
     if (s_edit == NULL)
         return;
-    /* the edit is a Unicode control: it hands back UTF-16 directly */
-    wlen = GetWindowTextW(s_edit, w, (int)(sizeof w / sizeof w[0]));
-    if (wlen < 1)
-        return;
-    if (utf16_to_utf8(w, buf, cap) < 0)
-        buf[0] = '\0';
+    if (g_win9x) {
+        /* the edit is an ANSI control (CreateWindowExW is a stub on 9x,
+         * and GetWindowTextW is one too): read the CP_ACP bytes and lift
+         * them to UTF-8 through the wide outlet */
+        char acp[INPUTBAR_TEXT_MAX];
+        wchar_t w[INPUTBAR_TEXT_MAX];
+        int alen = GetWindowTextA(s_edit, acp, (int)sizeof acp);
+        int wlen;
+
+        if (alen < 1)
+            return;
+        wlen = MultiByteToWideChar(CP_ACP, 0, acp, alen, w,
+                                   (int)(sizeof w / sizeof w[0]) - 1);
+        if (wlen < 1)
+            return;
+        w[wlen] = L'\0';
+        if (utf16_to_utf8(w, buf, cap) < 0)
+            buf[0] = '\0';
+    } else {
+        wchar_t w[INPUTBAR_TEXT_MAX];
+        int wlen;
+
+        /* the edit is a Unicode control: it hands back UTF-16 directly */
+        wlen = GetWindowTextW(s_edit, w, (int)(sizeof w / sizeof w[0]));
+        if (wlen < 1)
+            return;
+        if (utf16_to_utf8(w, buf, cap) < 0)
+            buf[0] = '\0';
+    }
 }
 
 void inputbar_clear(void)

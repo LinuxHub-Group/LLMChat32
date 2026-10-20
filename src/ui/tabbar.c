@@ -19,6 +19,7 @@
 #include <windows.h>
 
 #include "mainwin.h"   /* g_hwnd_main */
+#include "draw.h"      /* ui_make_font */
 #include "strings.h"
 #include "ui.h"
 
@@ -189,18 +190,18 @@ static LRESULT CALLBACK tabbar_wndproc(HWND hwnd, UINT msg, WPARAM wp,
 
     switch (msg) {
     case WM_CREATE:
-        /* DEFAULT_CHARSET so 中文 titles resolve on zh systems */
-        s_font = CreateFontW(-11, 0, 0, 0, FW_NORMAL, 0, 0, 0,
-                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                             CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-                             DEFAULT_PITCH | FF_DONTCARE, L"MS Shell Dlg");
+        /* DEFAULT_CHARSET (inside ui_make_font) so 中文 titles resolve
+         * on zh systems; 9x-safe CreateFontA variant */
+        s_font = ui_make_font(11);
         return 0;
 
     case WM_PAINT:
         hdc = BeginPaint(hwnd, &ps);
         GetClientRect(hwnd, &rc);
         FillRect(hdc, &rc, GetSysColorBrush(COLOR_BTNFACE));
-        old = SelectObject(hdc, s_font);
+        old = NULL;
+        if (s_font != NULL)
+            old = SelectObject(hdc, s_font);
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, GetSysColor(COLOR_BTNTEXT));
         for (i = 0; i < s_n; i++) {
@@ -209,7 +210,8 @@ static LRESULT CALLBACK tabbar_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         }
         plus_rect(&rc);
         draw_plus(hdc, &rc);
-        SelectObject(hdc, old);
+        if (old != NULL)
+            SelectObject(hdc, old);
         EndPaint(hwnd, &ps);
         return 0;
 

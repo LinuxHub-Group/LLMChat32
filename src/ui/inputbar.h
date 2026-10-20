@@ -14,11 +14,14 @@
  *                                         still inserts a newline)
  *   WM_COMMAND IDIB_MODEL (CBN_SELCHANGE)- model combobox selection changed
  *
- * Text discipline (project red line): the edit is a UNICODE control
- * (CreateWindowExW) and stores UTF-16, so IME composition survives
- * intact; inputbar_get_text() converts UTF-16 -> UTF-8 directly (no
- * ANSI code page involved). All text placed INTO the controls (button
- * caption, combo items) goes through the ui_* outlets.
+ * Text discipline (project red line): on NT the edit is a UNICODE
+ * control (CreateWindowExW) and stores UTF-16, so IME composition
+ * survives intact; inputbar_get_text() converts UTF-16 -> UTF-8
+ * directly (no ANSI code page involved). On Windows 9x the edit is an
+ * ANSI control (the W creation/subclass/read APIs are stubs there) and
+ * inputbar_get_text() lifts the CP_ACP bytes back to UTF-8. All text
+ * placed INTO the controls (button caption, combo items) goes through
+ * the ui_* outlets.
  */
 #ifndef LLMCHAT32_UI_INPUTBAR_H
 #define LLMCHAT32_UI_INPUTBAR_H

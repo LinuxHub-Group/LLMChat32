@@ -67,7 +67,7 @@ build\dlg_config.obj: src\ui\dlg_config.c src\ui\dlg_config.h src\core\config.h 
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\dlg_config.obj src\ui\dlg_config.c
 
-build\draw.obj: src\ui\draw.c src\ui\draw.h src\core\config.h src\core\utf.h
+build\draw.obj: src\ui\draw.c src\ui\draw.h src\ui\ui.h src\core\config.h src\core\utf.h
 	@if not exist build mkdir build
 	$(CC) $(CFLAGS) -c -fo=build\draw.obj src\ui\draw.c
 
@@ -205,12 +205,13 @@ tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\
 
 # image 解码层: stb_image 封装 (PNG/JPEG/BMP/GIF/TGA/PSD -> RGBA8)。
 # 混合断言在 draw.c 的 draw_blend_white（纯整数，无 GDI），但 draw.obj
-# 里的 ui_font/draw_bubble 引用 g_cfg 与 GDI，故链接 config/toml/utf +
-# gdi32 (与 app 一致). Task 18 起 image.c 还引用 net/tls/http 符号
-# (image_fetch)，故测试链接全栈 + wolfssl + ws2_32/advapi32。
-tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
+# 里的 ui_font/ui_make_font/draw_bubble 引用 g_cfg、g_win9x、ui_acp_a 与
+# GDI，故链接 config/toml/utf/ui + gdi32 (与 app 一致). Task 18 起 image.c
+# 还引用 net/tls/http 符号 (image_fetch)，故测试链接全栈 + wolfssl +
+# ws2_32/advapi32。
+tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\ui\ui.h src\ui\ui.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\ui\ui.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
 
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe

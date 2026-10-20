@@ -8,8 +8,10 @@
  * crosses the tail. Stock objects (NULL_PEN / NULL_BRUSH) are used for
  * the shape passes so no per-call GDI object churn beyond brush+pen.
  *
- * ui_font() caches its HFONT keyed by (font_size, font_name); the face
- * name arrives through utf8_to_utf16 like every other UI string.
+ * ui_font() caches its HFONT keyed by (font_size, font_name); creation
+ * goes through ui_make_font(), which picks CreateFontW on NT and
+ * CreateFontA (CP_ACP face name) on Windows 9x, where CreateFontW is a
+ * stub (see draw.h).
  */
 #include "draw.h"
 
@@ -18,6 +20,7 @@
 
 #include "../core/config.h"
 #include "../core/utf.h"
+#include "ui.h"
 
 #define BUBBLE_RADIUS 8
 #define TAIL_OFF      10   /* tail base distance from the side edge */
@@ -107,6 +110,37 @@ void draw_blend_white(const unsigned char *rgba, int npixels, int opacity,
     }
 }
 
+HFONT ui_make_font(int point_size)
+{
+    const char *name = g_cfg.g.font_name;
+    int h = point_size < 0 ? point_size : -point_size;
+
+    if (name == NULL || name[0] == '\0')
+        name = "MS Shell Dlg";
+    if (g_win9x) {
+        /* CreateFontW is a stub on 9x; the CP_ACP outlet turns the
+         * configured UTF-8 face name into the bytes CreateFontA wants
+         * (ASCII names pass through unchanged) */
+        char face[64];
+
+        ui_acp_a(face, (int)sizeof face, name);
+        return CreateFontA(h, 0, 0, 0, FW_NORMAL, 0, 0, 0,
+                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                           CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                           DEFAULT_PITCH | FF_DONTCARE, face);
+    }
+    {
+        wchar_t wface[64];
+
+        if (utf8_to_utf16(name, wface, 64) < 0)
+            wface[0] = (wchar_t)0;
+        return CreateFontW(h, 0, 0, 0, FW_NORMAL, 0, 0, 0,
+                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
+                           CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                           DEFAULT_PITCH | FF_DONTCARE, wface);
+    }
+}
+
 HFONT ui_font(void)
 {
     static HFONT s_font = NULL;
@@ -114,7 +148,6 @@ HFONT ui_font(void)
     static char s_name[64] = "";
     int size;
     const char *name;
-    wchar_t wface[64];
 
     size = g_cfg.g.font_size;
     if (size <= 0)
@@ -131,13 +164,7 @@ HFONT ui_font(void)
         s_font = NULL;
     }
 
-    if (utf8_to_utf16(name, wface, 64) < 0)
-        wface[0] = (wchar_t)0;
-
-    s_font = CreateFontW(-size, 0, 0, 0, FW_NORMAL, 0, 0, 0,
-                         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                         CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-                         DEFAULT_PITCH | FF_DONTCARE, wface);
+    s_font = ui_make_font(size);
     if (s_font != NULL) {
         s_size = size;
         strncpy(s_name, name, sizeof s_name - 1);

@@ -51,6 +51,7 @@ typedef enum {
     S_RECALL_FAILED,     /* MessageBox title when a recall fails */
     S_CORRUPT_TITLE,     /* startup notice: session files skipped */
     S_CORRUPT_BODY,      /* startup notice: listing header (file names appended) */
+    S_NO_INPUTBAR,       /* status-strip note: the input strip failed to create */
     S__COUNT
 } StrID;
 
@@ -132,7 +133,8 @@ const char *const g_strs_zh[S__COUNT] = {
     /* S_RECALL_DONE */      "已撤回",
     /* S_RECALL_FAILED */    "撤回失败",
     /* S_CORRUPT_TITLE */    "会话加载失败",
-    /* S_CORRUPT_BODY */     "以下会话文件已损坏，启动时已跳过：\n"
+    /* S_CORRUPT_BODY */     "以下会话文件已损坏，启动时已跳过：\n",
+    /* S_NO_INPUTBAR */      "输入栏创建失败，本次运行无法输入。"
 };
 
 const char *const g_strs_en[S__COUNT] = {
@@ -205,7 +207,8 @@ const char *const g_strs_en[S__COUNT] = {
     /* S_RECALL_DONE */      "Message recalled",
     /* S_RECALL_FAILED */    "Recall failed",
     /* S_CORRUPT_TITLE */    "Failed to load sessions",
-    /* S_CORRUPT_BODY */     "The following session files were corrupt and were skipped:\n"
+    /* S_CORRUPT_BODY */     "The following session files were corrupt and were skipped:\n",
+    /* S_NO_INPUTBAR */      "The input bar could not be created; typing is unavailable."
 };
 
 #else
