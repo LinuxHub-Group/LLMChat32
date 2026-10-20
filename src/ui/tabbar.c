@@ -22,6 +22,7 @@
 #include "draw.h"      /* ui_make_font */
 #include "strings.h"
 #include "ui.h"
+#include "../core/diag.h"
 
 #define TABBAR_CLASS   "LlmTabBar"
 #define TAB_PAD_X      6     /* title padding, both sides */
@@ -315,6 +316,12 @@ void tabbar_set_sessions(Session **list, int n)
                 strncpy(s_tabs[i].title,
                         list[i] != NULL ? list[i]->title : "",
                         sizeof s_tabs[i].title - 1);
+                diagf("tab: set [%d] title=%02x %02x %02x %02x '%s'",
+                      i, (unsigned char)s_tabs[i].title[0],
+                      (unsigned char)s_tabs[i].title[1],
+                      (unsigned char)s_tabs[i].title[2],
+                      (unsigned char)s_tabs[i].title[3],
+                      s_tabs[i].title);
                 s_tabs[i].title[sizeof s_tabs[i].title - 1] = '\0';
                 if (hdc != NULL)
                     tw = ui_text_width(hdc, s_tabs[i].title);

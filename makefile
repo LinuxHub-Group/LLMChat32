@@ -213,9 +213,9 @@ tests\test_app.exe: src\tests\test_app.c src\core\app.h src\core\app.c src\core\
 # GDI，故链接 config/toml/utf/ui + gdi32 (与 app 一致). Task 18 起 image.c
 # 还引用 net/tls/http 符号 (image_fetch)，故测试链接全栈 + wolfssl +
 # ws2_32/advapi32。
-tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\ui\ui.h src\ui\ui.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
+tests\test_image.exe: src\tests\test_image.c src\core\image.h src\core\image.c src\ui\draw.h src\ui\draw.c src\ui\ui.h src\ui\ui.c src\core\diag.c src\core\config.h src\core\config.c src\core\toml.h src\core\toml.c src\core\utf.h src\core\utf.c src\core\net.h src\core\net.c src\core\tls.h src\core\tls.c src\core\http.h src\core\http.c $(WOLFSSL_LIB)
 	@if not exist tests mkdir tests
-	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\ui\ui.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
+	$(CC) $(CFLAGS) -bc -k0x100000 $(WOLFSSL_OPTS) -fe=tests\test_image.exe src\tests\test_image.c src\core\image.c src\ui\draw.c src\ui\ui.c src\core\diag.c src\core\config.c src\core\toml.c src\core\utf.c src\core\net.c src\core\tls.c src\core\http.c $(WOLFSSL_LIB) gdi32.lib ws2_32.lib advapi32.lib
 
 clean: .SYMBOLIC
 	@if exist build\bomscan.exe del build\bomscan.exe
