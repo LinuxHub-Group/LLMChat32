@@ -194,6 +194,7 @@ static LRESULT CALLBACK tabbar_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         /* DEFAULT_CHARSET (inside ui_make_font) so 中文 titles resolve
          * on zh systems; 9x-safe CreateFontA variant */
         s_font = ui_make_font(11);
+        diag_font("tab", s_font);
         return 0;
 
     case WM_PAINT:

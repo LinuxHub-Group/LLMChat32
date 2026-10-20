@@ -45,6 +45,7 @@
 
 #include "../core/image.h"
 #include "../core/utf.h"
+#include "../core/diag.h"
 #include "commands.h"
 #include "draw.h"
 #include "mainwin.h"
@@ -1000,6 +1001,7 @@ HWND chatview_create(HWND parent)
             return NULL;
         s_registered = 1;
     }
+    diag_font("chat", ui_font());
     return CreateWindowExA(0, CV_CLASS, NULL,
                            WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
                            0, 0, 0, 0, parent, NULL, inst, NULL);

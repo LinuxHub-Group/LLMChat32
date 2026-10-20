@@ -103,3 +103,22 @@ void diagf(const char *fmt, ...)
     buf[n + 1] = '\n';
     WriteFile(g_file, buf, (DWORD)(n + 2), &wr, NULL);
 }
+
+void diag_font(const char *tag, HFONT f)
+{
+    LOGFONTA lf;
+
+    if (f == NULL) {
+        diagf("%s: font=NULL", tag);
+        return;
+    }
+    memset(&lf, 0, sizeof lf);
+    if (GetObjectA(f, sizeof lf, &lf) == 0) {
+        diagf("%s: font=%08x GetObjectA failed err=%lu",
+              tag, (unsigned)f, (unsigned long)GetLastError());
+        return;
+    }
+    diagf("%s: font=%08x face='%s' cs=%d h=%d wt=%d",
+          tag, (unsigned)f, lf.lfFaceName, (int)lf.lfCharSet,
+          (int)lf.lfHeight, (int)lf.lfWeight);
+}
