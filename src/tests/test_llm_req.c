@@ -29,6 +29,10 @@
  *      "Authorization: Bearer <key>"; overflow is reported.
  *   6: errors - unknown api and a too-small buffer both fail with a
  *      non-empty err.
+ *   7: llm_compose_path - base_url path (NULL/"/", "/v1", "/v1/", the
+ *      full endpoint URL, a "/prefix", "/prefix/v1", trailing-slash and
+ *      all-slash variants) joined with the api endpoint: no doubling, no
+ *      missing version segment.
  *
  * Prints one "ok ..." line per check and a final "PASS"/"FAIL" line.
  * Exit code: 0 on PASS, 1 on FAIL.
@@ -424,6 +428,64 @@ int main(void)
     rc = llm_build_request(&m, s, buf, 64, err, (int)sizeof(err));
     CHECK(rc != 0);
     CHECK(err[0] != '\0');
+
+    /* --- 7: llm_compose_path (base_url path + api endpoint) ------------- */
+    {
+        static const struct {
+            const char *base;
+            const char *api;
+            const char *want;
+        } cases[] = {
+            { NULL,                   "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "",                     "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "/",                    "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "//",                   "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "/v1",                  "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "/v1/",                 "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "/v1/chat/completions", "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "/v1/chat/completions/", "/v1/chat/completions",
+              "/v1/chat/completions" },
+            { "/openai",              "/v1/chat/completions",
+              "/openai/v1/chat/completions" },
+            { "/openai/v1",           "/v1/chat/completions",
+              "/openai/v1/chat/completions" },
+            { "/openai/v1/",          "/v1/chat/completions",
+              "/openai/v1/chat/completions" },
+            { "/moonshot",            "/v1/chat/completions",
+              "/moonshot/v1/chat/completions" },
+            { "/v1",                  "/v1/messages", "/v1/messages" },
+            { "/v1/messages",         "/v1/messages", "/v1/messages" },
+            { "/openai",              "/v1/messages",
+              "/openai/v1/messages" },
+            { "/prefix",              "/v1/responses",
+              "/prefix/v1/responses" },
+        };
+        char path[256];
+
+        for (i = 0; i < (int)(sizeof cases / sizeof cases[0]); i++) {
+            path[0] = '\0';
+            rc = llm_compose_path(cases[i].base, cases[i].api,
+                                  path, (int)sizeof path);
+            if (rc != 0 || strcmp(path, cases[i].want) != 0) {
+                printf("FAIL compose_path(%s, %s) -> \"%s\", want \"%s\""
+                       " (line %d)\n",
+                       cases[i].base ? cases[i].base : "(null)",
+                       cases[i].api, path, cases[i].want, __LINE__);
+                g_fail++;
+            } else {
+                printf("ok compose_path(%s, %s)\n",
+                       cases[i].base ? cases[i].base : "(null)",
+                       cases[i].api);
+            }
+        }
+    }
 
     session_free(s);
 

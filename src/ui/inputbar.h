@@ -14,10 +14,11 @@
  *                                         still inserts a newline)
  *   WM_COMMAND IDIB_MODEL (CBN_SELCHANGE)- model combobox selection changed
  *
- * Text discipline (project red line): the edit stores CP_ACP bytes (the
- * OS owns its content); inputbar_get_text() converts CP_ACP -> UTF-16 ->
- * UTF-8 so callers only ever see narrow UTF-8. All text placed INTO the
- * controls (button caption, combo items) goes through the ui_* outlets.
+ * Text discipline (project red line): the edit is a UNICODE control
+ * (CreateWindowExW) and stores UTF-16, so IME composition survives
+ * intact; inputbar_get_text() converts UTF-16 -> UTF-8 directly (no
+ * ANSI code page involved). All text placed INTO the controls (button
+ * caption, combo items) goes through the ui_* outlets.
  */
 #ifndef LLMCHAT32_UI_INPUTBAR_H
 #define LLMCHAT32_UI_INPUTBAR_H
@@ -56,9 +57,9 @@ void inputbar_set_models(const Config *cfg);
  * nothing is selected. */
 int  inputbar_selected_model(void);
 
-/* Copy the edit content into buf as narrow UTF-8 (CP_ACP -> UTF-16 ->
- * UTF-8), always NUL-terminated when cap > 0. Trailing bytes that do not
- * fit are cut on a character boundary. */
+/* Copy the edit content into buf as narrow UTF-8 (UTF-16 -> UTF-8), always
+ * NUL-terminated when cap > 0. Trailing bytes that do not fit are cut on
+ * a character boundary. */
 void inputbar_get_text(char *buf, int cap);
 
 /* Empty the edit. */

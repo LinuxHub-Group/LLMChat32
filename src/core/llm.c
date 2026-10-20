@@ -59,6 +59,69 @@ const char *llm_api_path(const ModelCfg *m)
     return "";
 }
 
+/* Compose the request path from the base_url path part and the protocol
+ * endpoint (see llm.h for the exact rules). Pure string surgery so the
+ * doubling-prone join is unit-testable. */
+int llm_compose_path(const char *basepath, const char *api,
+                     char *out, int cap)
+{
+    char base[1024];
+    size_t blen, alen, need;
+
+    if (!out || cap < 1)
+        return -1;
+    out[0] = '\0';
+    if (!api)
+        return -1;
+    alen = strlen(api);
+    if (!basepath || basepath[0] == '\0' || strcmp(basepath, "/") == 0) {
+        if (alen + 1 > (size_t)cap)
+            return -1;
+        memcpy(out, api, alen + 1);
+        return 0;
+    }
+
+    blen = strlen(basepath);
+    if (blen >= sizeof base)
+        return -1;
+    memcpy(base, basepath, blen + 1);
+    while (blen > 0 && base[blen - 1] == '/')
+        base[--blen] = '\0';
+    if (blen == 0) {            /* all slashes: treat as no path at all */
+        if (alen + 1 > (size_t)cap)
+            return -1;
+        memcpy(out, api, alen + 1);
+        return 0;
+    }
+
+    /* base already ends with the api path: the user pasted the full
+     * endpoint URL into base_url (e.g. .../v1/chat/completions) */
+    if (blen >= alen && strcmp(base + blen - alen, api) == 0) {
+        if (blen >= (size_t)cap)
+            return -1;
+        memcpy(out, base, blen + 1);
+        return 0;
+    }
+
+    /* OpenAI-style ".../v1" prefix: dedupe the version segment */
+    if (strncmp(api, "/v1/", 4) == 0 && blen >= 3 &&
+        strcmp(base + blen - 3, "/v1") == 0) {
+        need = blen + alen - 3;
+        if (need >= (size_t)cap)
+            return -1;
+        memcpy(out, base, blen);
+        memcpy(out + blen, api + 3, alen - 3 + 1);
+        return 0;
+    }
+
+    need = blen + alen;
+    if (need >= (size_t)cap)
+        return -1;
+    memcpy(out, base, blen);
+    memcpy(out + blen, api, alen + 1);
+    return 0;
+}
+
 /* reasoning_effort -> anthropic thinking budget_tokens (see llm.h). */
 static long effort_budget(const char *effort)
 {
@@ -899,12 +962,14 @@ int llm_send(const ModelCfg *m, const ProxyCfg *proxy, const Session *s,
             fire_error(&st, ev, ctx, err);
             return -1;
         }
-        /* base_url path prefix (anything but "/") is prepended to the
-         * protocol endpoint path */
-        if (strcmp(urlpath, "/") == 0)
-            snprintf(fullpath, sizeof(fullpath), "%s", ap);
-        else
-            snprintf(fullpath, sizeof(fullpath), "%s%s", urlpath, ap);
+        /* base_url path prefix joined with the protocol endpoint path
+         * (handles "/v1" prefixes and full endpoint URLs) */
+        if (llm_compose_path(urlpath, ap, fullpath,
+                             (int)sizeof(fullpath)) != 0) {
+            set_err(err, errcap, "base_url path too long");
+            fire_error(&st, ev, ctx, err);
+            return -1;
+        }
     }
 
     /* request body */

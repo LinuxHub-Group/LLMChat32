@@ -27,7 +27,7 @@
  * Encoding discipline: every string handed to an A-API goes through
  * the ui_* outlets (ui_set_a / ui_acp_a). Text read back from a
  * control is CP_ACP bytes (the OS owns the content), converted to
- * UTF-8 exactly like inputbar_get_text does. Combo boxes take their
+ * UTF-8 by get_utf8 below. Combo boxes take their
  * item strings via ui_acp_a (they accept a string argument, exactly
  * the case ui.h documents).
  */
@@ -253,7 +253,7 @@ static void dlg_set_fonts(CfgDlg *d)
 }
 
 /* GetWindowTextA yields CP_ACP bytes (the OS owns the control content);
- * convert back to narrow UTF-8, same recipe as inputbar_get_text. */
+ * convert back to narrow UTF-8: CP_ACP -> UTF-16 -> UTF-8. */
 static void get_utf8(HWND ctl, char *buf, int cap)
 {
     char acp[600];

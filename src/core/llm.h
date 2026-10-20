@@ -64,6 +64,29 @@ extern "C" {
 const char *llm_api_path(const ModelCfg *m);
 
 /*
+ * Compose the request path sent on the wire from the path part of the
+ * configured base_url (basepath, as returned by net_parse_url; may be
+ * "/") and the protocol endpoint path (api, e.g. "/v1/chat/completions").
+ * Users commonly paste either a bare host, an OpenAI-style ".../v1"
+ * prefix, or the full endpoint URL into base_url, so:
+ *
+ *   - basepath NULL/"" or "/"          -> out = api
+ *   - trailing '/' stripped from basepath (when that would empty the
+ *     path, out = api instead)
+ *   - base already ends with api       -> out = base (full endpoint URL
+ *                                          pasted into base_url)
+ *   - api starts with "/v1/" and base ends with "/v1"
+ *                                       -> out = base + api + 3 (dedupe
+ *                                          the version segment)
+ *   - otherwise                         -> out = base + api
+ *
+ * Writes at most cap-1 bytes plus a NUL. Returns 0 on success, non-zero
+ * when out is invalid or the composed path does not fit.
+ */
+int llm_compose_path(const char *basepath, const char *api,
+                     char *out, int cap);
+
+/*
  * Build the request body JSON for model m from session s into buf.
  * Returns 0 and NUL-terminates buf on success; on any failure returns
  * non-zero with a short message in err (when errcap > 0). Reasons:

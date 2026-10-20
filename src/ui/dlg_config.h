@@ -16,8 +16,8 @@
  * stays hand-edited in the TOML file).
  *
  * All strings reach the controls through the ui_* outlets; text read
- * back from controls is CP_ACP bytes converted to UTF-8, the same
- * discipline inputbar_get_text documents.
+ * back from controls is CP_ACP bytes converted to UTF-8 (see the
+ * get_utf8 recipe in dlg_config.c).
  */
 #ifndef LLMCHAT32_UI_DLG_CONFIG_H
 #define LLMCHAT32_UI_DLG_CONFIG_H
