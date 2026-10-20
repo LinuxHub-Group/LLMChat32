@@ -1,0 +1,66 @@
+# LLMChat32 配置示例
+# 用法：把本文件改名为 config.toml，放到 llmchat32.exe 旁边，填入你的 API key。
+# 字段说明见 README 或 docs/superpowers/specs/2026-10-19-llmchat32-design.md §7。
+
+[general]
+font_name = "SimSun"         # 字体名（简中 Win98 用 SimSun/宋体）
+font_size = 11
+history_dir = "history"      # 会话保存目录（自动创建）
+bg_image = ""                # 聊天区背景图路径（PNG/JPEG/BMP/GIF），空 = 白底
+bg_opacity = 40              # 背景图透明度 0-100（相对白色底）
+window_width = 640
+window_height = 480
+
+[proxy]
+host = ""                    # 可选 HTTP CONNECT 代理；留空 = 直连（无需任何代理程序）
+port = 7890
+username = ""
+password = ""
+
+[[models]]
+name = "Claude"
+api = "anthropic"            # anthropic | chat | responses
+base_url = "https://api.anthropic.com"
+api_key = "sk-ant-填你的key"
+model_id = "claude-sonnet-4-5"
+use_proxy = false
+stream = true                # false = 一次性返回（服务器不支持 SSE 时用）
+reasoning = true             # 是否请求思考过程
+reasoning_effort = "medium"  # low | medium | high
+thinking_budget = 8000       # anthropic 思考预算（覆盖 effort 映射）
+max_tokens = 4096
+max_context_chars = 120000   # 客户端上下文上限（0 = 不限）
+temperature = -1             # -1 = 不发送该参数
+verify_tls = true
+
+[[models]]
+name = "GPT"
+api = "chat"
+base_url = "https://api.openai.com/v1"
+api_key = "sk-填你的key"
+model_id = "gpt-4o"
+use_proxy = false
+stream = true
+reasoning = false
+reasoning_effort = "medium"
+thinking_budget = 0
+max_tokens = 4096
+max_context_chars = 120000
+temperature = -1
+verify_tls = true
+
+[[models]]
+name = "Kimi"
+api = "responses"
+base_url = "https://api.kimi.com/coding/"
+api_key = "sk-填你的key"
+model_id = "k3"
+use_proxy = false
+stream = true
+reasoning = false
+reasoning_effort = "medium"
+thinking_budget = 0
+max_tokens = 4096
+max_context_chars = 120000
+temperature = -1
+verify_tls = true
