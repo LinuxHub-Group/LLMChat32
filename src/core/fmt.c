@@ -198,6 +198,9 @@ int fmt_vsnprintf(char *buf, int cap, const char *fmt, va_list ap)
 
             if (s == 0)
                 s = "(null)";
+            else if ((unsigned long)s < 0x10000UL)
+                s = "(BADPTR)";   /* 9x forensics: a wild near-NULL arg is
+                                     logged, never dereferenced */
             while (s[len] != '\0')
                 len++;
             if (prec >= 0 && len > prec)
