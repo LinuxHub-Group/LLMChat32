@@ -204,6 +204,7 @@ static LRESULT CALLBACK tabbar_wndproc(HWND hwnd, UINT msg, WPARAM wp,
         old = NULL;
         if (s_font != NULL)
             old = SelectObject(hdc, s_font);
+        ui_prime_dc(hdc);
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, GetSysColor(COLOR_BTNTEXT));
         for (i = 0; i < s_n; i++) {

@@ -701,6 +701,7 @@ static void paint_view(HDC m, int cw, int ch)
     old_font = NULL;
     if (ui_font() != NULL)
         old_font = SelectObject(m, ui_font());
+        ui_prime_dc(m);
     SetBkMode(m, TRANSPARENT);
     prev = SetTextColor(m, GetSysColor(COLOR_WINDOWTEXT));
 

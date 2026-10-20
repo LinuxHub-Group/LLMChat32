@@ -461,6 +461,7 @@ static void paint_status_strip(HDC hdc, const RECT *client)
     rc.right -= STATUS_PAD_X;
     prev = SetTextColor(hdc, GetSysColor(COLOR_BTNTEXT));
     SetBkMode(hdc, TRANSPARENT);
+    ui_prime_dc(hdc);
     ui_drawtext_w(hdc, s_status_text[0] ? s_status_text : LS(s_status),
                   &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SetTextColor(hdc, prev);

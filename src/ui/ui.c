@@ -369,6 +369,22 @@ int ui_text_width(HDC hdc, const char *utf8)
     return (int)sz.cx;
 }
 
+void ui_prime_dc(HDC hdc)
+{
+    static const wchar_t warm[] = {
+        (wchar_t)0x4F60, (wchar_t)0x597D,   /* 你好 */
+        (wchar_t)0x4E16, (wchar_t)0x754C,   /* 世界 */
+        (wchar_t)'A', (wchar_t)'z',
+        (wchar_t)0
+    };
+
+    if (!g_win9x)
+        return;
+    /* far above the visible area; the goal is only to force the 9x font
+       mapper/glyph cache to realize this font in this DC */
+    TextOutW(hdc, -64, -64, warm, 6);
+}
+
 /* ------------------------------------------------------------------ */
 /* A-API outlets (CP_ACP conversion - the only legal ones)             */
 
