@@ -91,6 +91,20 @@ static void to_acp(const char *utf8, char *out, int cap)
 /* metrics follow DrawText: line height = tm.tmHeight +                */
 /* tm.tmExternalLeading; CALCRECT returns left/top plus width/height.  */
 
+/* Windows 9x quirk: ExtTextOutW drops leading glyphs and renders tofu
+ * boxes for others on the first few draws after a font enters a DC
+ * (the font "warms up" only through repeated drawing). Drawing the same
+ * text twice makes every draw self-healing; NT draws once. */
+static BOOL txtout(HDC hdc, int x, int y, UINT opts, const RECT *rc,
+                   const wchar_t *w, int n)
+{
+    BOOL ok = ExtTextOutW(hdc, x, y, opts, rc, w, n, NULL);
+
+    if (g_win9x)
+        ExtTextOutW(hdc, x, y, opts, rc, w, n, NULL);
+    return ok;
+}
+
 /* Width of the n-unit prefix of w under hdc's font, 0 on failure. */
 static int ui_seg_w(HDC hdc, const wchar_t *w, int n)
 {
@@ -166,7 +180,7 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
             y = rc->top + (rc->bottom - rc->top - lh) / 2;
         else if (fmt & DT_BOTTOM)
             y = rc->bottom - lh;
-        ok = ExtTextOutW(hdc, x, y, ETO_CLIPPED, rc, w, n, NULL);
+        ok = txtout(hdc, x, y, ETO_CLIPPED, rc, w, n);
         diagf("txt: n=%d dw=%d rcw=%d ret=%d err=%lu u=%04x %04x %04x %04x",
               n, dw, availw, (int)ok, (unsigned long)GetLastError(),
               n > 0 ? (unsigned)w[0] : 0, n > 1 ? (unsigned)w[1] : 0,
@@ -190,7 +204,7 @@ static void ui_draw_single(HDC hdc, const wchar_t *w, RECT *rc, UINT fmt)
             y = rc->top + (rc->bottom - rc->top - lh) / 2;
         else if (fmt & DT_BOTTOM)
             y = rc->bottom - lh;
-        ExtTextOutW(hdc, x, y, ETO_CLIPPED, rc, w, n, NULL);
+        txtout(hdc, x, y, ETO_CLIPPED, rc, w, n);
     }
 }
 
@@ -205,8 +219,8 @@ static void ui_emit_line(HDC hdc, const wchar_t *w, int start, int len,
     if (lw > *maxw)
         *maxw = lw;
     if (!calc_only)
-        ExtTextOutW(hdc, rc->left, rc->top + *nlines * lh, ETO_CLIPPED,
-                    rc, w + start, len, NULL);
+        txtout(hdc, rc->left, rc->top + *nlines * lh, ETO_CLIPPED,
+                    rc, w + start, len);
     (*nlines)++;
 }
 
